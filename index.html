@@ -1,0 +1,3350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Jani Fu</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; overscroll-behavior: none; }
+  body {
+    margin: 0;
+    background: #1a1410;
+    color: #f0e6d2;
+    font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* ---------- Top bar: back link, title, volume, reset/leaderboard ---------- */
+  #topBar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px;
+    background: #241c14;
+    border-bottom: 2px solid #3a2d1c;
+  }
+  #miniTitle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 1.1em;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+    color: #ffcf40;
+    text-shadow: 1px 1px 0 #7a1f1f;
+    white-space: nowrap;
+  }
+  #topLogo {
+    height: 30px;
+    width: auto;
+    border-radius: 4px;
+    display: block;
+  }
+  #topBarRight { display: flex; align-items: center; gap: 6px; }
+  .iconBtn {
+    background: #3a2d1c;
+    color: #f0e6d2;
+    border: 1px solid #5a4626;
+    border-radius: 6px;
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    text-decoration: none;
+    padding: 0;
+  }
+  .iconBtn:active { transform: translateY(1px); }
+  #volumeSlider {
+    width: 56px;
+    accent-color: #ffcf40;
+    cursor: pointer;
+  }
+
+  /* ---------- Top health bar: moved out of the in-canvas HUD per BJ's
+     request, so it reads as a primary status bar rather than a small
+     corner readout — sits in the body's chrome, just above the playing
+     window, centered, at 2/3 the width of the play area below it. ---------- */
+  #topHealthBarRow {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: center;
+    padding: 6px 8px 0;
+    background: #241c14;
+  }
+  #topHealthBarWrap {
+    width: 66%;
+    max-width: 66%;
+  }
+
+  /* ---------- Game area: the actual play surface (~top 75-80%) ---------- */
+  #gameArea {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    overflow: hidden;
+    padding: 6px;
+  }
+  #stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #cbb27a;
+    border: 4px solid #5a3d20;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    touch-action: none;
+  }
+  #hud {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    right: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    font-size: 14px;
+    text-shadow: 1px 1px 2px #000;
+    pointer-events: none;
+  }
+  #healthWrap {
+    width: 120px;
+  }
+  #healthLabel { font-weight: bold; margin-bottom: 3px; text-align: center; font-size: 13px; letter-spacing: 0.5px; }
+  #livesWrap { margin-top: 4px; font-size: 16px; letter-spacing: 3px; }
+  #livesWrap .lifeIcon.lost { opacity: 0.25; filter: grayscale(1); }
+  #healthBarBg {
+    width: 100%;
+    height: 18px;
+    background: #3a1010;
+    border: 2px solid #200a0a;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  #healthBarFill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff5050, #ffcf40);
+    width: 100%;
+    transition: width 0.15s ease-out;
+  }
+  #progressWrap {
+    width: 118px;
+  }
+  #progressBarBg {
+    width: 100%;
+    height: 10px;
+    background: #202030;
+    border: 2px solid #10101a;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 2px;
+  }
+  #progressBarFill {
+    height: 100%;
+    background: linear-gradient(90deg, #40a0ff, #40ffcf);
+    width: 0%;
+    transition: width 0.2s ease-out;
+  }
+  /* Power Clean meter — fills from kills, doubles as its own trigger button
+     once full (#hud has pointer-events:none, so this needs its own
+     override). Not clickable/glowing until ready, so it can't be
+     mis-tapped mid-fight. */
+  #powerWrap {
+    width: 118px;
+    margin-top: 6px;
+    pointer-events: auto;
+  }
+  #powerLabel { font-weight: bold; margin-bottom: 2px; font-size: 11px; }
+  #powerBarBg {
+    width: 100%;
+    height: 10px;
+    background: #10202a;
+    border: 2px solid #081015;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  #powerBarFill {
+    height: 100%;
+    background: linear-gradient(90deg, #2a6fdb, #7fd8ff);
+    width: 0%;
+    transition: width 0.15s ease-out;
+  }
+  #powerWrap.ready { cursor: pointer; }
+  #powerWrap.ready #powerBarFill {
+    background: linear-gradient(90deg, #00e0ff, #ffffff);
+    animation: powerPulse 0.7s ease-in-out infinite;
+  }
+  #powerWrap.ready #powerLabel { animation: powerPulse 0.7s ease-in-out infinite; }
+  @keyframes powerPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  #scoreBox { text-align: right; font-weight: bold; }
+  #bossHealthWrap {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 150px;
+    display: none;
+    pointer-events: none;
+  }
+  #bossHealthWrap .label { text-align: center; font-size: 13px; margin-bottom: 2px; text-shadow: 1px 1px 2px #000; }
+  #bossHealthBarBg {
+    width: 100%;
+    height: 12px;
+    background: #200020;
+    border: 2px solid #100010;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  #bossHealthBarFill {
+    height: 100%;
+    background: linear-gradient(90deg, #b040ff, #ff40a0);
+    width: 100%;
+    transition: width 0.15s ease-out;
+  }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(10, 8, 6, 0.88);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 14px;
+    border-radius: 4px;
+    overflow-y: auto;
+  }
+  .overlay h2 { color: #ffcf40; font-size: 1.5em; margin: 0 0 8px; }
+  .overlay p { margin: 4px 0; color: #e6d9b8; max-width: 400px; line-height: 1.4; font-size: 0.92em; }
+  /* Keyboard reference is only relevant on a computer — touchscreens already
+     have the on-screen D-pad/buttons visible below, so hide it there. */
+  @media (hover: none) and (pointer: coarse) {
+    .desktopOnly { display: none; }
+  }
+  #characterCards {
+    display: flex;
+    gap: 16px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .charCard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 140px;
+    padding: 12px 8px;
+    background: rgba(255,255,255,0.06);
+    border: 2px solid #6a4a1a;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #fff;
+    font-weight: bold;
+    font-size: 1em;
+  }
+  .charCard:hover, .charCard:focus {
+    border-color: #ffcf40;
+    background: rgba(255,207,64,0.12);
+  }
+  .charCard img {
+    height: 110px;
+    object-fit: contain;
+  }
+  .btn {
+    margin-top: 12px;
+    padding: 9px 24px;
+    font-size: 1em;
+    font-weight: bold;
+    background: linear-gradient(180deg, #ffcf40, #d9960f);
+    color: #3a2000;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #8a5c00;
+  }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #8a5c00; }
+  .btn.secondary {
+    background: linear-gradient(180deg, #7a8a9a, #4a5560);
+    color: #fff;
+    box-shadow: 0 3px 0 #2a3540;
+  }
+  #titleImage {
+    display: block;
+    width: 100%;
+    max-width: 260px;
+    margin: 0 auto 8px;
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    flex-shrink: 0;
+  }
+  #game-controls { display: flex; gap: 10px; margin-top: 8px; }
+  #leaderboard-overlay, #score-entry-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(10,8,6,0.92);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+  }
+  .leaderboard-panel {
+    background: #2a2018;
+    border: 3px solid #6a4a20;
+    border-radius: 8px;
+    padding: 20px 26px;
+    text-align: center;
+    min-width: 220px;
+    max-width: 90%;
+  }
+  .leaderboard-panel h2 { color: #ffcf40; margin-top: 0; }
+  #leaderboard-list { list-style: decimal; text-align: left; padding-left: 24px; color: #f0e6d2; }
+  #leaderboard-list li { margin: 4px 0; }
+  #score-entry-name {
+    padding: 8px;
+    font-size: 1em;
+    border-radius: 4px;
+    border: 1px solid #6a4a20;
+    margin: 10px 0;
+    width: 80%;
+  }
+
+  /* ---------- Control bar: solid gray Game Boy-style controls (bottom ~20%) ---------- */
+  #controlBar {
+    flex: 0 0 20%;
+    min-height: 108px;
+    max-height: 190px;
+    background: #8f8f8f;
+    border-top: 3px solid #6b6b6b;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 5vw;
+  }
+  /* Left cluster: left/right move + crouch only — jump moved to the action
+     side (below) so the thumb holding move can't also be needed to jump;
+     crouching already zeroes horizontal movement in the game logic, so
+     crouch+move was never a real combo worth preserving here. */
+  #dpad {
+    display: flex;
+    align-items: center;
+    gap: clamp(6px, 2.5vw, 10px);
+  }
+  #dpad button {
+    width: clamp(38px, 12vw, 50px);
+    height: clamp(38px, 12vw, 50px);
+    background: #141414;
+    border: none;
+    border-radius: 8px;
+    color: #eee;
+    font-size: 16px;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  #dpad button:active { background: #000; }
+  #crouchBtn { border-radius: 50%; }
+
+  /* Right cluster: POWER+JUMP on top, KICK/PUNCH below — a dedicated jump
+     button under the other thumb lets you jump while still holding
+     left/right. POWER sits next to it rather than replacing the HUD bar's
+     tap-to-trigger (kept as a second affordance) — a real button matching
+     KICK/PUNCH is what players actually look for mid-fight. */
+  #actionButtons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(6px, 2.5vw, 10px);
+  }
+  #actionTopRow {
+    display: flex;
+    align-items: center;
+    gap: clamp(6px, 2.5vw, 10px);
+  }
+  #actionBottomRow {
+    display: flex;
+    gap: clamp(10px, 4vw, 18px);
+  }
+  #jumpBtn, #kickBtn, #punchBtn, #powerBtn {
+    border-radius: 50%;
+    background: #141414;
+    color: #eee;
+    border: 2px solid #050505;
+    font-weight: bold;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  #jumpBtn:active, #kickBtn:active, #punchBtn:active, #powerBtn.ready:active { background: #000; transform: scale(0.94); }
+  #jumpBtn {
+    width: clamp(40px, 12vw, 52px);
+    height: clamp(40px, 12vw, 52px);
+    font-size: 11px;
+  }
+  #kickBtn, #punchBtn {
+    width: clamp(48px, 15vw, 62px);
+    height: clamp(48px, 15vw, 62px);
+  }
+  #powerBtn {
+    width: clamp(36px, 11vw, 46px);
+    height: clamp(36px, 11vw, 46px);
+    font-size: 8px;
+    background: #0a1a22;
+    color: #3d5a63;
+    opacity: 0.6;
+  }
+  #powerBtn.ready {
+    background: linear-gradient(180deg, #00e0ff, #2a6fdb);
+    color: #04121a;
+    opacity: 1;
+    animation: powerPulse 0.7s ease-in-out infinite;
+  }
+</style>
+</head>
+<body>
+
+<div id="topBar">
+  <div id="miniTitle"><img id="topLogo" src="images/title.jpg" alt="">JANI FU</div>
+  <div id="topBarRight">
+    <button id="volMuteBtn" class="iconBtn" title="Mute">🔊</button>
+    <input type="range" id="volumeSlider" min="0" max="100" value="12">
+    <button id="reset-btn" class="iconBtn" title="Reset">&#8635;</button>
+    <button id="leaderboard-btn" class="iconBtn" title="Leaderboard">&#127942;</button>
+  </div>
+</div>
+
+<div id="topHealthBarRow">
+  <div id="topHealthBarWrap">
+    <div id="healthLabel">JANITOR HP</div>
+    <div id="healthBarBg"><div id="healthBarFill"></div></div>
+  </div>
+</div>
+
+<div id="gameArea">
+<div id="stage">
+  <canvas id="game" width="450" height="975"></canvas>
+  <audio id="bgMusic" src="audio/theme.mp3" loop preload="auto"></audio>
+  <audio id="kiaiSfx" src="audio/kiai.mp3" preload="auto"></audio>
+  <audio id="punchSfx" src="audio/punch.mp3" preload="auto"></audio>
+  <audio id="bossMoanSfx" src="audio/boss1_emerge_moan.mp3" preload="auto"></audio>
+  <audio id="powerWooshSfx" src="audio/power_clean_whoosh.mp3" preload="auto"></audio>
+  <audio id="powerVoiceSfx" src="audio/power_clean_voice.mp3" preload="auto"></audio>
+
+  <div id="hud">
+    <div id="healthWrap">
+      <div id="livesWrap"></div>
+      <div id="progressWrap">
+        <div style="font-size:11px; margin-top:6px;">LEVEL <span id="levelNum">1</span> &mdash; HALLWAY PROGRESS</div>
+        <div id="progressBarBg"><div id="progressBarFill"></div></div>
+      </div>
+      <div id="powerWrap">
+        <div id="powerLabel">POWER CLEAN</div>
+        <div id="powerBarBg"><div id="powerBarFill"></div></div>
+      </div>
+    </div>
+    <div id="scoreBox">
+      SCORE<br><span id="scoreNum">0</span>
+    </div>
+  </div>
+
+  <div id="bossHealthWrap">
+    <div class="label">ADMINISTRATOR FURY</div>
+    <div id="bossHealthBarBg"><div id="bossHealthBarFill"></div></div>
+  </div>
+
+  <div id="characterSelectOverlay" class="overlay">
+    <p style="font-size:1.3em; font-weight:bold;">CHOOSE YOUR JANITOR</p>
+    <div id="characterCards">
+      <button class="charCard" id="charCardBj" data-char="bj">
+        <img src="images/sprites/idle.png" alt="BJ">
+        <span>BJ</span>
+      </button>
+      <button class="charCard" id="charCardJpunk" data-char="jpunk">
+        <img src="images/sprites/jpunk/idle.png" alt="J-Punk">
+        <span>J-PUNK</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="startOverlay" class="overlay" style="display:none;">
+    <img id="titleImage" src="images/title.jpg" alt="Jani Fu">
+    <p>BJ, a janitor hero, must protect the children of Bay Path High from the zombie school administrators using the ancient art of Jani Fu!</p>
+    <p class="desktopOnly"><b>Keyboard:</b> Arrow keys move, Down/S crouches, Up/Space jumps, Z punches, X kicks (low sweep while crouched), C triggers Power Clean once the meter is full.</p>
+    <p>Kill zombies to fill the POWER CLEAN meter, then hit the glowing POWER button (or press C) to wipe the screen clean!</p>
+    <button class="btn" id="startBtn">START SHIFT</button>
+  </div>
+
+  <div id="gameOverOverlay" class="overlay" style="display:none;">
+    <h2>FIRED (AND WORSE)</h2>
+    <p id="gameOverText">The monsters got the better of you this shift.</p>
+    <p>Final Score: <span id="finalScoreGO">0</span></p>
+    <button class="btn" id="retryBtn">TRY AGAIN</button>
+  </div>
+
+  <div id="levelCompleteOverlay" class="overlay" style="display:none;">
+    <h2 id="levelCompleteTitle">LEVEL CLEAR</h2>
+    <p id="levelCompleteText">The administrator has been subdued... for now.</p>
+    <button class="btn" id="nextLevelBtn">NEXT LEVEL</button>
+  </div>
+
+  <div id="winOverlay" class="overlay" style="display:none;">
+    <h2>SHIFT SAVED!</h2>
+    <p>Every last mad administrator has been dealt with. The janitor mops up, job secure &mdash; for now.</p>
+    <p>Final Score: <span id="finalScoreWin">0</span></p>
+    <div id="game-controls">
+      <button class="btn" id="playAgainBtn">PLAY AGAIN</button>
+    </div>
+  </div>
+
+  <div id="leaderboard-overlay">
+    <div class="leaderboard-panel">
+      <h2>Top 10</h2>
+      <ol id="leaderboard-list"></ol>
+      <p id="leaderboard-error" style="display:none;">Couldn't load leaderboard.</p>
+      <button class="btn secondary" id="leaderboard-close">Close</button>
+    </div>
+  </div>
+
+  <div id="score-entry-overlay">
+    <div class="leaderboard-panel">
+      <h2>You made the top 10!</h2>
+      <input id="score-entry-name" maxlength="20" placeholder="Your name">
+      <br>
+      <button class="btn" id="score-entry-submit">Submit</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<div id="controlBar">
+  <div id="dpad">
+    <button id="leftBtn">&#9664;</button>
+    <button id="crouchBtn">&#9660;</button>
+    <button id="rightBtn">&#9654;</button>
+  </div>
+  <div id="actionButtons">
+    <div id="actionTopRow">
+      <button id="powerBtn">POWER</button>
+      <button id="jumpBtn">JUMP</button>
+    </div>
+    <div id="actionBottomRow">
+      <button id="kickBtn">KICK</button>
+      <button id="punchBtn">PUNCH</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  "use strict";
+
+  const GAME_SLUG = "jani-fu";
+  const LEADERBOARD_KEY = "jani-fu-leaderboard";
+
+  // ---------- Canvas setup ----------
+  // The vertical world height stays fixed at 975 so every hand-tuned pixel
+  // value (jump physics, character sizes, background band heights) keeps
+  // its calibrated proportions; only the width adapts to the device's
+  // actual aspect ratio so the game fills the screen with no letterboxing.
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const BASE_H = 975;
+  const stageRect = document.getElementById("stage").getBoundingClientRect();
+  const deviceAspect = (stageRect.width > 0 && stageRect.height > 0) ? (stageRect.width / stageRect.height) : (450 / 975);
+  canvas.width = Math.round(BASE_H * deviceAspect);
+  canvas.height = BASE_H;
+  const W = canvas.width, H = canvas.height;
+  const GROUND_Y = H - 150;
+
+  // ---------- Background art (BJ's pixel-art hallway panels, replacing the canvas-primitive one) ----------
+  // 4 interchangeable 2048x768 hallway panels, all drawn from the same
+  // camera/perspective template — measured directly from the source pixels
+  // and near-identical across all 4: locker doors run from y=258 to the
+  // locker-base/floor-tile line at y=542.
+  //
+  // Scaling this purely by "floor line -> GROUND_Y" (1 constraint) leaves
+  // the scale free, and picking it naively (ceiling flush with canvas top)
+  // blows the lockers up to ~68% of screen height — 4-5x taller than the
+  // player sprite, when the old procedural background (and the character
+  // scale everything else — hitboxes, spacing, level lengths — was tuned
+  // against) drew lockers at a fixed 260 world-px, deliberately smaller
+  // than the character in the Kung-Fu-NES beat-'em-up style this game
+  // follows. So this needs 2 constraints, solved together: floor line ->
+  // GROUND_Y *and* locker height -> 260 world-px, which pins down both
+  // the scale and the vertical offset. The tradeoff is the offset comes
+  // out positive — the scaled image is shorter than the canvas and starts
+  // partway down — so a flat ceiling-color fill covers the gap above it
+  // (the HUD overlay sits right on top of that area anyway).
+  const BG_SRC_W = 2048, BG_SRC_H = 768;
+  const BG_TARGET_LOCKER_H = 260;
+  const BG_CEILING_FILL = "#39395c";
+  // Per-level panel sets — each level gets its own 4-panel background so the
+  // hallway visibly changes as the player advances. Each set carries its OWN
+  // lockerTop/floorLine measured directly from its pixels — level 2's art
+  // ("Bad level A-D") turned out to use a different camera framing than
+  // level 1 (lockers sit lower in frame: top ~330 vs 258, floor line ~610 vs
+  // 542), even though both are 2048x768. Reusing level 1's floor-line
+  // constant against level 2's art put the rendered floor well below
+  // GROUND_Y, so the character walked on empty air above the visible floor.
+  // Levels without their own measured art fall back to level 1's set/numbers.
+  // Level 3's art ("Level 3/three A-D") measured out to the same camera
+  // template as level 2's (locker top ~339-340, floor line ~615-622 across
+  // all 4 panels) — reused level 2's exact numbers rather than re-deriving
+  // them, since they're within the same measurement noise.
+  const BG_LEVEL_CONFIGS = [
+    { names: ["hallway_1", "hallway_2", "hallway_3", "hallway_4"], lockerTop: 258, floorLine: 542 },
+    { names: ["level2/level2_1", "level2/level2_2", "level2/level2_3", "level2/level2_4"], lockerTop: 339, floorLine: 621 },
+    { names: ["level3/level3_1", "level3/level3_2", "level3/level3_3", "level3/level3_4"], lockerTop: 339, floorLine: 621 },
+  ];
+  const bgLevels = BG_LEVEL_CONFIGS.map((cfg) => {
+    const scale = BG_TARGET_LOCKER_H / (cfg.floorLine - cfg.lockerTop);
+    return {
+      images: cfg.names.map((name) => {
+        const img = new Image();
+        img.src = "images/backgrounds/" + name + ".jpg";
+        return img;
+      }),
+      scale,
+      tileW: BG_SRC_W * scale,
+      tileH: BG_SRC_H * scale,
+      dy: GROUND_Y - cfg.floorLine * scale,
+    };
+  });
+
+  // ---------- Ceiling light flicker (atmosphere) ----------
+  // Ceiling fixture positions measured directly from each level's panels
+  // (source-image pixel coords, 2048x768 space — placed with the same
+  // scale/dy as that level's background art). Panel index is the tile's
+  // position in that level's BG_LEVEL_CONFIGS names array, i.e. idx % 4
+  // from the background tiling loop. Indexed by levelIndex; a level with
+  // no entry here just has no flicker overlay.
+  const LIGHTS_BY_LEVEL = {
+    // Level 2: only 1 in every 4 fixtures flickers (2 of the 8); the rest
+    // stay lit steady, matching the "some lights dead, most fine"
+    // damaged-school read the art already has.
+    1: [
+      { panel: 0, x: 350, y: 100, r: 70, flicker: true },
+      { panel: 0, x: 1080, y: 90, r: 70, flicker: false },
+      { panel: 1, x: 510, y: 110, r: 70, flicker: false },
+      { panel: 1, x: 1080, y: 95, r: 70, flicker: false },
+      { panel: 2, x: 530, y: 100, r: 70, flicker: true },
+      { panel: 2, x: 1220, y: 120, r: 70, flicker: false },
+      { panel: 3, x: 480, y: 80, r: 70, flicker: false },
+      { panel: 3, x: 1250, y: 110, r: 70, flicker: false },
+    ],
+    // Level 3: more fixtures flicker than level 2 (5 of 9, vs level 2's 2 of
+    // 8) — BJ wants it visibly more unstable heading into the final boss.
+    2: [
+      { panel: 0, x: 420, y: 90, r: 70, flicker: true },
+      { panel: 0, x: 1080, y: 90, r: 70, flicker: false },
+      { panel: 1, x: 750, y: 70, r: 70, flicker: true },
+      { panel: 1, x: 1800, y: 90, r: 70, flicker: false },
+      { panel: 2, x: 60, y: 60, r: 70, flicker: false },
+      { panel: 2, x: 1220, y: 70, r: 70, flicker: true },
+      { panel: 3, x: 400, y: 70, r: 70, flicker: true },
+      { panel: 3, x: 1120, y: 70, r: 70, flicker: false },
+      { panel: 3, x: 1870, y: 70, r: 70, flicker: true },
+    ],
+  };
+  let flickerClock = 0;
+  // Cheap deterministic hash -> [0,1), stepped in ~110ms buckets per light
+  // (via the seed) so each flickering fixture stutters independently rather
+  // than in lockstep, reading as electrical flicker instead of a smooth fade.
+  function flickerHash(n) {
+    const s = Math.sin(n * 12.9898) * 43758.5453;
+    return s - Math.floor(s);
+  }
+  function flickerDarkness(seed, t) {
+    const bucket = Math.floor(t * 9 + seed * 37.1);
+    const r = flickerHash(bucket + seed * 91.7);
+    if (r < 0.12) return 0.8; // hard blackout flash
+    if (r < 0.3) return 0.4; // dim stutter
+    return 0; // normal — lit as painted
+  }
+
+  // ---------- Player sprites (BJ's hand-drawn art, replacing the canvas-primitive rig) ----------
+  // Every sprite was cropped tight to its own alpha bounding box, so each
+  // image's own bottom edge IS that pose's ground-contact point (feet).
+  // Drawing every sprite bottom-center-anchored at the player's translate
+  // origin (which already carries the real jump-arc height via player.y)
+  // means jump art can show tucked/lifted legs and still land in the right
+  // place — no separate "bob" hack needed like the old primitive rig had.
+  const PLAYER_SPRITE_SCALE = 0.53; // bumped up from the old ~94px-rig-matching 0.31 so the character reads as the scene's focal point against the real-art background, rather than shrinking the background to compensate (monsters are getting their own art pass next anyway, so they'll be tuned against this bigger scale from the start)
+  // The walk-cycle frames were generated in a separate batch from
+  // idle/stand/jump/crouch and came back drawn at a smaller scale — same
+  // character, just fewer pixels tall. Measuring a pose-invariant landmark
+  // (head width) put walk at ~93% the scale of every other pose, which
+  // read as the character visibly shrinking on every step. This corrects
+  // just those two frames back up to match. BJ-specific — J-Punk's own
+  // walk frames weren't drawn in a separate undersized batch, so his
+  // override map stays empty.
+  // J-Punk's idle_left/idle_right (added later, see character-select facing
+  // fix) came from a separate, much higher-resolution sheet than his other
+  // 9 poses — ~885px tall vs ~417px for e.g. stand_punch, same character at
+  // roughly double the raw pixel scale. Without correcting for that they'd
+  // render about twice as big as every other J-Punk pose. This scales each
+  // back down to the same 417px reference height the rest of his set (and
+  // PLAYER_CHAR_SCALE below) is calibrated against.
+  const PLAYER_SPRITE_SCALE_OVERRIDES = {
+    bj: { walk_right_1: 1.07, walk_right_2: 1.07 },
+    jpunk: { idle_left: 417 / 882, idle_right: 417 / 887 }
+  };
+  // J-Punk's source sheet was cropped at a higher raw resolution than BJ's
+  // art (idle.png: 417px tall vs BJ's 307px) — same PLAYER_SPRITE_SCALE
+  // applied to both would render him ~36% taller on screen. This equalizes
+  // standing height across characters by comparing each one's idle frame.
+  const PLAYER_CHAR_SCALE = { bj: 1, jpunk: 307 / 417 };
+  const PLAYER_SPRITE_NAMES = [
+    "idle", "stand_punch", "stand_kick", "jump", "jump_punch", "jump_kick",
+    "crouch", "crouch_punch", "crouch_kick", "walk_right_1", "walk_right_2"
+  ];
+  // Two selectable characters (see character-select overlay) share the same
+  // 11-pose set, just from different folders — both preload up front so
+  // there's no pop-in switching between them, and `playerSprites` below is
+  // just which one drawPlayer() currently reads from.
+  const PLAYER_CHAR_FOLDERS = { bj: "images/sprites/", jpunk: "images/sprites/jpunk/" };
+  const PLAYER_SPRITES_BY_CHAR = {};
+  Object.keys(PLAYER_CHAR_FOLDERS).forEach((charId) => {
+    const set = {};
+    PLAYER_SPRITE_NAMES.forEach((name) => {
+      const img = new Image();
+      img.src = PLAYER_CHAR_FOLDERS[charId] + name + ".png";
+      set[name] = img;
+    });
+    PLAYER_SPRITES_BY_CHAR[charId] = set;
+  });
+  // J-Punk has dedicated left- and right-facing idle art instead of the
+  // automatic mirror-flip every other pose uses — his base idle pose isn't
+  // symmetric enough for a flip to read correctly (it visibly looked like
+  // he was facing the wrong way while moving). BJ's idle pose is symmetric
+  // and keeps using the normal single-image-plus-flip path.
+  const PLAYER_DIRECTIONAL_IDLE = { bj: false, jpunk: true };
+  // Filenames on disk carry a _v2 suffix distinct from the sprite key used
+  // everywhere else in the code — these two got swapped/re-swapped several
+  // times chasing a facing bug, and Cloudflare's edge cache (4hr max-age)
+  // kept serving whichever pre-swap bytes it had cached under the old
+  // filenames regardless of what was actually on disk. A real filename
+  // change is the only way to force a fresh fetch without dashboard access.
+  [["idle_left", "idle_left_v2"], ["idle_right", "idle_right_v2"]].forEach(([key, file]) => {
+    const img = new Image();
+    img.src = "images/sprites/jpunk/" + file + ".png";
+    PLAYER_SPRITES_BY_CHAR.jpunk[key] = img;
+  });
+  let selectedCharacter = "bj";
+  let playerSprites = PLAYER_SPRITES_BY_CHAR[selectedCharacter];
+
+  // ---------- Webbed (SUPERINTENDENT's web-catch) sprite ----------
+  // Shared across both playable characters — the whole point of the pose
+  // is that the player is completely cocooned, so there's nothing
+  // character-specific left to show. Scaled to roughly match standing
+  // height (~163 world-px, same target the per-character idle art hits).
+  const WEBBED_SPRITE_SCALE = 0.108;
+  const webbedSprite = new Image();
+  webbedSprite.src = "images/sprites/webbed.png";
+
+  // ---------- Web shot (flying web projectile) sprite ----------
+  // Replaces the old procedural placeholder net-icon in drawWebProjectile.
+  // Native art is a net glob with its trailing strands stretched out to
+  // the RIGHT of the glob — i.e. it reads as flying LEFTWARD (the glob
+  // leads, the tail drags behind where it came from), opposite of this
+  // game's usual "art faces right" convention. See the dir === 1 flip in
+  // drawWebProjectile below.
+  const WEB_SHOT_SPRITE_SCALE = 0.06;
+  const webShotSprite = new Image();
+  webShotSprite.src = "images/sprites/web_shot.png";
+
+  // ---------- Power Clean pose (per-character hero art) ----------
+  // Unlike the other player poses, this one bakes the whole energy-burst
+  // effect into the same flattened image rather than being a tight
+  // character-only crop — kept that way on purpose since the burst IS the
+  // move's visual, not something drawPowerWave needs to separately fake.
+  // Each entry's scale is calibrated by measuring that character's own
+  // head-top-to-boot-bottom span in their source art and fitting it to the
+  // same ~195 world-px target — a bit taller than the normal ~163 standing
+  // height, matching how bosses read bigger than grunts on purpose for a
+  // "moment" like this. BJ: y=195 to y=1160 in his 1312x1199 art (span
+  // 965). J-Punk: y=95 to y=1227 in his 1199x1312 art (span 1132).
+  // BJ's pose reaches asymmetrically with one open hand toward the LEFT of
+  // frame — opposite of the game's "art faces right natively" convention —
+  // so his flip is inverted relative to every other sprite; J-Punk's pose
+  // is a roughly symmetric two-fisted stance with no such quirk, so his
+  // follows the normal convention.
+  const POWER_CLEAN_SPRITES = { bj: new Image(), jpunk: new Image() };
+  POWER_CLEAN_SPRITES.bj.src = "images/sprites/power_clean.png";
+  POWER_CLEAN_SPRITES.jpunk.src = "images/sprites/jpunk/power_clean.png";
+  const POWER_SPRITE_SCALE_BY_CHAR = { bj: 195 / 965, jpunk: 195 / 1132 };
+  const POWER_SPRITE_FLIP_INVERTED = { bj: true, jpunk: false };
+
+  // ---------- Grunt monster sprites (BJ's zombie-teacher art) ----------
+  // Native art faces left; walking/attacking toward the player from the
+  // right (the common case — monsters spawn ahead of the player) is
+  // exactly that orientation, so facing=-1 draws as-is and only
+  // facing=1 (chasing from behind, e.g. an ambush) needs a horizontal
+  // flip. Scaled so a standing grunt reads as a hair shorter than the
+  // player (145 vs his ~160 world-px) — same "hero is the tallest thing
+  // on screen" convention the background scale was tuned to.
+  const MONSTER_SPRITE_SCALE = 0.279;
+  const GRUNT_SPRITE_NAMES = ["walk_1", "walk_2", "windup", "attack", "hurt"];
+  const gruntSprites = {};
+  GRUNT_SPRITE_NAMES.forEach((name) => {
+    const img = new Image();
+    img.src = "images/sprites/zombie_teacher/" + name + ".png";
+    gruntSprites[name] = img;
+  });
+
+  // ---------- Tough monster sprites (BJ's zombie gym-teacher art) ----------
+  // Same left-facing/mirror convention and scale bucket as the grunt —
+  // just a bulkier, 2-hit palette (the art itself conveys "tougher," no
+  // extra scale needed). Only 2 walk frames + punch + hurt were made, no
+  // dedicated windup pose, so "windup" state borrows a walk frame same as
+  // "idle" does.
+  const TOUGH_SPRITE_NAMES = ["walk_1", "walk_2", "punch", "hurt"];
+  const toughSprites = {};
+  TOUGH_SPRITE_NAMES.forEach((name) => {
+    const img = new Image();
+    img.src = "images/sprites/gym_teacher/" + name + ".png";
+    toughSprites[name] = img;
+  });
+
+  // ---------- Thrower monster sprites (BJ's zombie-teacher art) ----------
+  // Same left-facing/mirror convention as the grunt above. Head-width
+  // comparison against the grunt art confirmed the same underlying scale
+  // (~197px vs ~204px, within measurement noise), so this reuses
+  // MONSTER_SPRITE_SCALE rather than needing its own — the idle pose just
+  // measures taller in raw pixels because it's fully upright, not hunched
+  // like the grunt's shuffle, which is a real pose difference, not a
+  // scale mismatch to correct.
+  const THROWER_SPRITE_NAMES = ["idle", "windup", "throw", "hurt"];
+  const throwerSprites = {};
+  THROWER_SPRITE_NAMES.forEach((name) => {
+    const img = new Image();
+    img.src = "images/sprites/zombie_teacher_f/" + name + ".png";
+    throwerSprites[name] = img;
+  });
+
+  // ---------- Child sprites (BJ's 4 running-kid art) ----------
+  // Kids only ever run leftward in this game (dashing past the player
+  // toward the level start), which is exactly the direction this art
+  // already faces — no mirroring ever needed. 3 hand-drawn run frames
+  // per kid, cycled the same way the player's walk cycle is.
+  const CHILD_SPRITE_SCALE = 0.301;
+  const CHILD_VARIANTS = ["girl_pigtail", "boy_red", "boy_green", "girl_sari"];
+  const childSprites = CHILD_VARIANTS.map((variant) => {
+    const frames = [1, 2, 3].map((n) => {
+      const img = new Image();
+      img.src = "images/sprites/children/" + variant + "_" + n + ".png";
+      return img;
+    });
+    return frames;
+  });
+
+  // ---------- Boss sprites (BJ's "First boss" art — the VICE PRINCIPAL, level 1's boss) ----------
+  // Native art faces right (confirmed by BJ), same convention as the
+  // thrower — mirror when facing left. The boss never actually chases
+  // (he's stationary at bossHomeX), so facing is computed fresh each draw
+  // from the player's position rather than tracked as a field. Scaled
+  // taller than the player/grunt on purpose — he's meant to loom.
+  const BOSS_SPRITE_SCALE = 0.55;
+  const BOSS1_SPRITE_NAMES = ["idle", "fire_windup", "fire_breath", "punch", "hurt", "defeated"];
+  const boss1Sprites = {};
+  BOSS1_SPRITE_NAMES.forEach((name) => {
+    const img = new Image();
+    img.src = "images/sprites/boss1/" + name + ".png";
+    boss1Sprites[name] = img;
+  });
+
+  // ---------- Boss 2 sprites (BJ's "Boss level two" sheet — the PRINCIPAL, level 2's boss) ----------
+  // Unlike boss1Sprites, the attack pose comes pre-drawn facing both ways
+  // (attack_left/attack_right) rather than a single pose mirrored via
+  // ctx.scale, so no facing flip is needed for the attack swing itself.
+  // idle/walk_1/walk_2/walk_3 form a 4-frame menacing shuffle used for both
+  // "idle" and "windup" (no dedicated windup pose, same as boss1). No fire
+  // art was supplied, so this boss skips the firewindup/firebreath states
+  // entirely (see hasFireAttack in spawnBoss/updateBoss).
+  const BOSS2_SPRITE_NAMES = ["idle", "walk_1", "walk_2", "walk_3", "attack_left", "attack_right", "stunned", "ground"];
+  const boss2Sprites = {};
+  BOSS2_SPRITE_NAMES.forEach((name) => {
+    const img = new Image();
+    img.src = "images/sprites/boss2/" + name + ".png";
+    boss2Sprites[name] = img;
+  });
+  const BOSS2_SHUFFLE_FRAMES = ["idle", "walk_1", "walk_2", "walk_3"];
+  const BOSS2_SHUFFLE_FRAME_S = 0.22;
+
+  // ---------- Boss 3 sprites (BJ's "Superintendant" sheet — level 3's boss) ----------
+  // A spider-legged final boss: walk_1/2/3 form the idle/windup shuffle
+  // (same convention as boss2Sprites), web_throw is a ranged attack, and
+  // web_pull_up/crash_down are the two halves of its signature move —
+  // reeling itself up out of frame, then slamming back down for an AOE
+  // hit (see WEB_* states in updateBoss/drawBossSprite3). No plain melee
+  // art was supplied, so unlike the other two bosses this one never uses
+  // "windup"/"attack" — see hasWebAttack.
+  const BOSS3_SHUFFLE_FRAMES = ["walk_1", "walk_2", "walk_3"];
+  const BOSS3_SHUFFLE_FRAME_S = 0.22;
+  const BOSS3_SPRITE_NAMES = ["walk_1", "walk_2", "walk_3", "web_throw", "web_pull_up", "crash_down", "stunned", "defeated"];
+  const boss3Sprites = {};
+  BOSS3_SPRITE_NAMES.forEach((name) => {
+    const img = new Image();
+    img.src = "images/sprites/boss3/" + name + ".png";
+    boss3Sprites[name] = img;
+  });
+
+  // ---------- Boss portal-emergence intro (BJ's "Portal one" sheet) ----------
+  // Replaces the old instant pop-in: the boss now visibly climbs out of a
+  // portal over BOSS_EMERGE_TOTAL_MS when the fight triggers. Native art
+  // faces right (same convention as boss1Sprites) but was authored for a
+  // portal opening on the LEFT side of the arena; level 1's boss sits at the
+  // right end of the hallway with the player approaching from the left, so
+  // this needs the opposite facing from the default and is drawn mirrored
+  // unconditionally (not player-position-dependent like drawBossSprite's
+  // flip — the portal doesn't turn to track the player, only the awake boss
+  // does). Frames were extracted via connected-component labeling (scipy)
+  // since two frames' reaching arms overlap in bounding-box x-range without
+  // actually touching pixel-wise.
+  const BOSS_PORTAL_FRAME_NAMES = ["portal_empty", "emerge_1", "emerge_2", "emerge_3", "emerge_4", "emerge_5"];
+  const bossPortalSprites = {};
+  BOSS_PORTAL_FRAME_NAMES.forEach((name) => {
+    const img = new Image();
+    img.src = "images/sprites/boss1_portal/" + name + ".png";
+    bossPortalSprites[name] = img;
+  });
+  const BOSS_EMERGE_FRAME_MS = 260;
+  const BOSS_EMERGE_TOTAL_MS = BOSS_EMERGE_FRAME_MS * BOSS_PORTAL_FRAME_NAMES.length;
+
+  // ---------- Pre-fight taunt dialogue (level 1 only, VICE PRINCIPAL) ----------
+  // Runs right after the portal-emergence animation finishes, before the
+  // fight actually starts — boss stays non-vulnerable/non-attacking through
+  // this too (see the "taunting" branch in updateBoss). Pure canvas-drawn
+  // speech bubbles (rounded rect + tail + wrapped text), no image asset
+  // needed — see drawTauntBubble.
+  const BOSS_TAUNT_LINES = [
+    { speaker: "boss", text: "Detention's over, BJ. Time for the FINAL bell.", durationMs: 2200 },
+    { speaker: "player", text: "Good — I brought a mop with your name on it.", durationMs: 2200 },
+  ];
+
+  // ---------- Thrown-book sprites (BJ's 3-frame rotation art) ----------
+  // Replaces the old single-image-plus-ctx.rotate() primitive book with 3
+  // pre-drawn rotation snapshots, cycled by flight time — a discrete
+  // sprite-flip instead of a smooth spin, same technique as a walk cycle.
+  const BOOK_SPRITE_SCALE = 0.12;
+  const bookSprites = [1, 2, 3].map((n) => {
+    const img = new Image();
+    img.src = "images/sprites/book/frame" + n + ".png";
+    return img;
+  });
+
+  // ---------- Coffee station sprites (BJ's full/empty pot art) ----------
+  // Maps directly onto the health pack's existing collected/!collected
+  // split — the whole station now visibly changes instead of just a
+  // small primitive cup disappearing. Scale is calibrated so the glass
+  // carafe itself (~210 natural px wide) comes out roughly head-sized on
+  // the player (~46 world-px, matching the head-width landmark measured
+  // for his sprite) — BJ's own reference point for "how big should this
+  // background prop read," rather than treating it as another
+  // human-scale character like the monsters.
+  const COFFEE_SPRITE_SCALE = 0.206;
+  const coffeeSprites = {
+    full: Object.assign(new Image(), { src: "images/sprites/coffee/full.png" }),
+    empty: Object.assign(new Image(), { src: "images/sprites/coffee/empty.png" }),
+  };
+
+  function spriteReady(img) {
+    return img && img.complete && img.naturalWidth > 0;
+  }
+
+  // ---------- Audio ----------
+  let masterVolume = 0.12; // game starts very quiet; SFX get a boost on top so they still cut through
+  let previousVolume = 0.12;
+  const SFX_BOOST = 2.6;
+  let audioCtx = null;
+  const bgMusic = document.getElementById("bgMusic");
+  const kiaiSfx = document.getElementById("kiaiSfx");
+  const punchSfx = document.getElementById("punchSfx");
+  const bossMoanSfx = document.getElementById("bossMoanSfx");
+  const powerWooshSfx = document.getElementById("powerWooshSfx");
+  const powerVoiceSfx = document.getElementById("powerVoiceSfx");
+  // Per-level tracks — each level gets its own mood, ramping creepier toward
+  // the final boss. bgMusic is wired to a single MediaElementSourceNode
+  // (see ensureAudioCtx below); that connection survives src changes, so
+  // switching levels just swaps .src and replays rather than needing a
+  // second <audio> element. Levels without their own track yet reuse level 1's.
+  const LEVEL_MUSIC = ["audio/theme.mp3", "audio/theme_level2.mp3", "audio/theme.mp3"];
+  // iOS Safari silently ignores HTMLMediaElement.volume (media volume is
+  // hardware-button-only there), so bgMusic.volume / sfx.volume assignments
+  // have zero effect on an iPhone even though they work everywhere else.
+  // Route the <audio> elements through real Web Audio GainNodes so the
+  // slider/mute button actually change what's audible on mobile too.
+  let musicGainNode = null;
+  let sfxGainNode = null;
+  let hitShoutGainNode = null; // kiai/punch shout clips only, at 0.2 relative to other SFX (see the graph setup below for history)
+  let audioGraphReady = false;
+  // Punch/kick used to restart an <audio> element per hit (currentTime=0,
+  // play()) — on a compressed mp3 that means a real seek+decode on every
+  // press, which reads as a noticeable delay (this was already true before
+  // the volume fix, just inaudible on iPhone so nobody noticed). Preloading
+  // the two clips as AudioBuffers and firing them with a fresh
+  // AudioBufferSourceNode.start() each hit is effectively latency-free,
+  // same technique already used for the synthesized thud sound below.
+  let kiaiBuffer = null;
+  let punchBuffer = null;
+  let bossMoanBuffer = null;
+  let powerWooshBuffer = null;
+  let powerVoiceBuffer = null;
+  function loadSfxBuffer(el, onLoaded) {
+    if (!audioCtx) return;
+    fetch(el.currentSrc || el.src)
+      .then((r) => r.arrayBuffer())
+      .then((data) => audioCtx.decodeAudioData(data))
+      .then(onLoaded)
+      .catch(() => {});
+  }
+  function ensureAudioCtx() {
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+    }
+    if (audioCtx && audioCtx.state === "suspended") {
+      audioCtx.resume().catch(() => {});
+    }
+    if (audioCtx && !audioGraphReady) {
+      try {
+        musicGainNode = audioCtx.createGain();
+        musicGainNode.gain.value = masterVolume;
+        musicGainNode.connect(audioCtx.destination);
+        audioCtx.createMediaElementSource(bgMusic).connect(musicGainNode);
+
+        sfxGainNode = audioCtx.createGain();
+        sfxGainNode.gain.value = Math.min(1, masterVolume * SFX_BOOST);
+        sfxGainNode.connect(audioCtx.destination);
+        hitShoutGainNode = audioCtx.createGain();
+        // Was 2/3 (down a third, per BJ's first pass). Second pass: the
+        // punch/kick shout still read as "very loud after a while" even at
+        // that level, so it's down ~70% from THAT (2/3 * 0.3 = 0.2), not
+        // 70% off the original full volume.
+        hitShoutGainNode.gain.value = 0.2;
+        hitShoutGainNode.connect(sfxGainNode);
+        audioCtx.createMediaElementSource(kiaiSfx).connect(hitShoutGainNode);
+        audioCtx.createMediaElementSource(punchSfx).connect(hitShoutGainNode);
+        audioCtx.createMediaElementSource(bossMoanSfx).connect(sfxGainNode);
+        audioCtx.createMediaElementSource(powerWooshSfx).connect(sfxGainNode);
+        audioCtx.createMediaElementSource(powerVoiceSfx).connect(sfxGainNode);
+
+        audioGraphReady = true;
+        loadSfxBuffer(kiaiSfx, (buf) => { kiaiBuffer = buf; });
+        loadSfxBuffer(punchSfx, (buf) => { punchBuffer = buf; });
+        loadSfxBuffer(bossMoanSfx, (buf) => { bossMoanBuffer = buf; });
+        loadSfxBuffer(powerWooshSfx, (buf) => { powerWooshBuffer = buf; });
+        loadSfxBuffer(powerVoiceSfx, (buf) => { powerVoiceBuffer = buf; });
+      } catch (e) {}
+    }
+  }
+  function playThud() {
+    if (masterVolume <= 0 || !audioCtx) return;
+    const dur = 0.12;
+    const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * dur, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    const gain = audioCtx.createGain();
+    gain.gain.value = Math.min(1, 0.35 * masterVolume * SFX_BOOST);
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 900;
+    src.connect(filter).connect(gain).connect(audioCtx.destination);
+    src.start();
+  }
+  function shout() {
+    if (masterVolume <= 0) return;
+    playThud();
+    const isKick = player.action === "kick";
+    const buffer = isKick ? kiaiBuffer : punchBuffer;
+    if (buffer && audioCtx && hitShoutGainNode) {
+      const src = audioCtx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(hitShoutGainNode);
+      src.start();
+      return;
+    }
+    // Buffer not loaded yet (e.g. the very first hit) — fall back to the
+    // <audio> element. Its own .volume is ignored once createMediaElementSource
+    // has tapped it for the graph (routed through hitShoutGainNode instead),
+    // but this still matters on the rare path where audioCtx never came up.
+    const sfx = isKick ? kiaiSfx : punchSfx;
+    try {
+      sfx.currentTime = 0;
+      sfx.volume = Math.min(1, masterVolume * SFX_BOOST * 0.2); // matches hitShoutGainNode
+      sfx.play().catch(() => {});
+    } catch (e) {}
+  }
+  function playMoan() {
+    if (masterVolume <= 0 || !audioCtx) return;
+    try {
+      const now = audioCtx.currentTime;
+      const dur = 0.45;
+      const osc = audioCtx.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(190, now);
+      osc.frequency.exponentialRampToValueAtTime(85, now + dur);
+      const vibrato = audioCtx.createOscillator();
+      vibrato.frequency.value = 7;
+      const vibratoGain = audioCtx.createGain();
+      vibratoGain.gain.value = 10;
+      vibrato.connect(vibratoGain);
+      vibratoGain.connect(osc.frequency);
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(Math.min(1, 0.32 * masterVolume * SFX_BOOST), now + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = 650;
+      osc.connect(filter).connect(gain).connect(audioCtx.destination);
+      vibrato.start(now);
+      osc.start(now);
+      vibrato.stop(now + dur);
+      osc.stop(now + dur);
+    } catch (e) {}
+  }
+
+  // BJ's real recorded zombie moan (replaces a synth placeholder the way
+  // kiai/punch did) — plays once as the level-1 boss's portal opens, same
+  // AudioBuffer-preload technique as kiai/punch for latency-free playback.
+  function playBossEmergeMoan() {
+    if (masterVolume <= 0 || !audioCtx) return;
+    if (bossMoanBuffer && sfxGainNode) {
+      const src = audioCtx.createBufferSource();
+      src.buffer = bossMoanBuffer;
+      src.connect(sfxGainNode);
+      src.start();
+      return;
+    }
+    try {
+      bossMoanSfx.currentTime = 0;
+      bossMoanSfx.volume = Math.min(1, masterVolume * SFX_BOOST);
+      bossMoanSfx.play().catch(() => {});
+    } catch (e) {}
+  }
+
+  // Whoosh leads immediately, BJ's recorded "Power Clean!" line follows a
+  // beat behind it — mirrors how the visual wave (drawPowerWave) kicks off
+  // before the big text callout appears.
+  function playPowerCleanAudio() {
+    if (masterVolume <= 0 || !audioCtx) return;
+    const playBuffered = (buffer, el, delaySec) => {
+      if (buffer && sfxGainNode) {
+        const src = audioCtx.createBufferSource();
+        src.buffer = buffer;
+        src.connect(sfxGainNode);
+        src.start(audioCtx.currentTime + delaySec);
+        return;
+      }
+      setTimeout(() => {
+        try {
+          el.currentTime = 0;
+          el.volume = Math.min(1, masterVolume * SFX_BOOST);
+          el.play().catch(() => {});
+        } catch (e) {}
+      }, delaySec * 1000);
+    };
+    playBuffered(powerWooshBuffer, powerWooshSfx, 0);
+    playBuffered(powerVoiceBuffer, powerVoiceSfx, 0.12);
+  }
+
+  function playWaypointChime() {
+    if (masterVolume <= 0 || !audioCtx) return;
+    try {
+      const now = audioCtx.currentTime;
+      [392.00, 523.25, 659.25].forEach((freq, i) => {
+        const start = now + i * 0.07;
+        const dur = 0.22;
+        const osc = audioCtx.createOscillator();
+        osc.type = "triangle";
+        osc.frequency.value = freq;
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.linearRampToValueAtTime(Math.min(1, 0.35 * masterVolume * SFX_BOOST), start + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(start);
+        osc.stop(start + dur);
+      });
+    } catch (e) {}
+  }
+
+  function playHealChime() {
+    if (masterVolume <= 0 || !audioCtx) return;
+    try {
+      const now = audioCtx.currentTime;
+      [523.25, 783.99].forEach((freq, i) => {
+        const start = now + i * 0.08;
+        const dur = 0.28;
+        const osc = audioCtx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.linearRampToValueAtTime(Math.min(1, 0.4 * masterVolume * SFX_BOOST), start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(start);
+        osc.stop(start + dur);
+      });
+    } catch (e) {}
+  }
+
+  const volumeSlider = document.getElementById("volumeSlider");
+  const volMuteBtn = document.getElementById("volMuteBtn");
+  function applyVolume(v) {
+    masterVolume = v;
+    bgMusic.volume = v;
+    if (musicGainNode) musicGainNode.gain.value = v;
+    if (sfxGainNode) sfxGainNode.gain.value = Math.min(1, v * SFX_BOOST);
+    volMuteBtn.textContent = v <= 0 ? "🔇" : (v < 0.5 ? "🔉" : "🔊");
+  }
+  volumeSlider.addEventListener("input", (e) => {
+    const v = Number(e.target.value) / 100;
+    applyVolume(v);
+    if (v > 0) previousVolume = v;
+  });
+  volMuteBtn.addEventListener("click", () => {
+    if (masterVolume > 0) {
+      previousVolume = masterVolume;
+      applyVolume(0);
+      volumeSlider.value = 0;
+    } else {
+      const restore = previousVolume || 0.5;
+      applyVolume(restore);
+      volumeSlider.value = Math.round(restore * 100);
+    }
+  });
+  applyVolume(0.12);
+
+  // ---------- Level config (fixed, deterministic layouts — no randomness) ----------
+  // Each level is a fixed-length hallway, ~4x longer than the original cut.
+  // Density ramps from sparse (baseSpacing) to packed (minSpacing) as the
+  // player advances toward the boss corridor. Ambush monsters pop in from
+  // behind after a trigger point, and clustered pairs show up late.
+  //
+  // Per BJ's request, difficulty now also ramps via two independent knobs
+  // per level, not just speed/spacing/hp:
+  //   - `mix`: percentage of grunt (male teacher) / thrower (female
+  //     teacher) / tough (gym teacher) — baseline 70/20/10 at level 1,
+  //     shifting 15 points from grunt to thrower+tough (roughly 2:1, same
+  //     ratio as the baseline split) each level: 55/30/15, then 40/40/20.
+  //   - `slotPattern`/`buddyEveryNth`/`ambushSpreadStart`/`ambushSpreadEnd`:
+  //     each level gets its own monster/child rhythm, cluster frequency,
+  //     and ambush pop-in spread, so layouts read as genuinely different
+  //     shapes level to level, not just the same shape scaled tighter.
+  const LEVELS = [
+    { length: 14400, baseSpacing: 300, minSpacing: 190, startOffset: 420, monsterSpeed: 155, bossHp: 8,
+      monsterAttackInterval: 1700, throwInterval: 1700,
+      mix: { grunt: 70, thrower: 20, tough: 10 },
+      // Ambushes never include thrower (see the ambush spawn loop below) —
+      // a melee ambush has to close the distance before it can hit you,
+      // giving a real beat to react, which a ranged one popping in behind
+      // you doesn't. Level 1 stays all-grunt ambushes; 2 and 3 sprinkle in
+      // a gym teacher or two per BJ's request.
+      ambushMix: { grunt: 100, tough: 0 },
+      slotPattern: ["monster","child","monster","monster","child","monster","monster","monster","child","monster","child","monster"],
+      buddyEveryNth: 4, clusterZoneP: 0.7,
+      ambushCount: 4, ambushSpreadStart: 0.35, ambushSpreadEnd: 0.85,
+      bossAttackInterval: 1300, bossTitle: "VICE PRINCIPAL" },
+    { length: 19200, baseSpacing: 260, minSpacing: 150, startOffset: 400, monsterSpeed: 185, bossHp: 12,
+      monsterAttackInterval: 1400, throwInterval: 1400,
+      mix: { grunt: 55, thrower: 30, tough: 15 },
+      ambushMix: { grunt: 85, tough: 15 }, // ~1 of this level's 8 ambushes
+      slotPattern: ["monster","monster","child","monster","monster","monster","child","monster","monster","child","monster","monster","monster","child"],
+      buddyEveryNth: 3, clusterZoneP: 0.55,
+      ambushCount: 8, ambushSpreadStart: 0.28, ambushSpreadEnd: 0.88,
+      bossAttackInterval: 1050, bossTitle: "PRINCIPAL" },
+    { length: 24000, baseSpacing: 220, minSpacing: 120, startOffset: 380, monsterSpeed: 215, bossHp: 18,
+      monsterAttackInterval: 1150, throwInterval: 1100,
+      mix: { grunt: 40, thrower: 40, tough: 20 },
+      ambushMix: { grunt: 85, tough: 15 }, // ~2 of this level's 12 ambushes
+      slotPattern: ["monster","monster","monster","child","monster","monster","monster","monster","child","monster","monster","monster","child","monster","monster"],
+      buddyEveryNth: 2, clusterZoneP: 0.4,
+      ambushCount: 12, ambushSpreadStart: 0.2, ambushSpreadEnd: 0.95,
+      bossAttackInterval: 850, bossTitle: "SUPERINTENDENT" },
+  ];
+
+  const CHILD_RUN_SPEED = 130;
+
+  // Weighted round-robin: deterministically interleaves grunt/thrower/tough
+  // across a fixed-length cycle in proportion to `mix`, instead of clumping
+  // (e.g. all grunts, then all throwers). Standard network-scheduler credit
+  // algorithm — each slot goes to whichever kind has accumulated the most
+  // "credit" (mix percentage) since it last got picked, then that kind's
+  // credit drops by the total weight (100). Length 20 divides evenly for
+  // every mix above (all multiples of 5), so each level's cycle hits its
+  // exact percentages with no rounding drift.
+  function buildKindPattern(mix, length) {
+    const kinds = Object.keys(mix);
+    const credits = {};
+    kinds.forEach((k) => { credits[k] = 0; });
+    const pattern = [];
+    for (let i = 0; i < length; i++) {
+      kinds.forEach((k) => { credits[k] += mix[k]; });
+      let best = kinds[0];
+      kinds.forEach((k) => { if (credits[k] > credits[best]) best = k; });
+      pattern.push(best);
+      credits[best] -= 100;
+    }
+    return pattern;
+  }
+  LEVELS.forEach((cfg) => { cfg.kindPattern = buildKindPattern(cfg.mix, 20); });
+
+  // Monster kind maps to a zombified-staff archetype so the threat is
+  // readable at a glance: "thrower" = lady teacher (long skirt + blouse,
+  // 1 hit, fights from range with thrown books), "grunt"/"tough" = male
+  // teacher (slacks, short-sleeve button-down, tie, melee) — "tough" takes
+  // 2 hits and hits a little harder, shown via HP pips above its head.
+  function classifyMonsterKind(monsterIndex, cfg) {
+    return cfg.kindPattern[monsterIndex % cfg.kindPattern.length];
+  }
+
+  function makeMonster(wx, cfg, kind) {
+    return {
+      type: "monster", wx, homeX: wx, y: GROUND_Y, w: 44, h: 68,
+      dead: false, hitFlash: 0, hitCooldown: 0, state: "idle", facing: -1, attackTimer: 0,
+      kind, hp: kind === "tough" ? 2 : 1, maxHp: kind === "tough" ? 2 : 1,
+      speed: cfg.monsterSpeed, throwInterval: cfg.throwInterval,
+      ambush: false, activated: true, walkPhase: 0,
+      // deterministic (not random) so a given spawn always patrols the same
+      // way on replay, same reasoning as the rest of this level generator
+      patrolDir: (Math.round(wx) % 2 === 0) ? 1 : -1
+    };
+  }
+
+  function buildLevel(idx) {
+    const cfg = LEVELS[idx];
+    const obstacles = [];
+    const fieldEnd = cfg.length - 700; // leave a clear run-up to the boss arena
+    const span = Math.max(1, fieldEnd - cfg.startOffset);
+    let wx = cfg.startOffset;
+    let i = 0;
+    let monsterIndex = 0;
+    let lastX = wx;
+    while (wx < fieldEnd) {
+      const p = Math.min(1, Math.max(0, (wx - cfg.startOffset) / span));
+      const slot = cfg.slotPattern[i % cfg.slotPattern.length];
+      if (slot === "monster") {
+        const kind = classifyMonsterKind(monsterIndex, cfg);
+        obstacles.push(makeMonster(wx, cfg, kind));
+        monsterIndex++;
+        if (p >= cfg.clusterZoneP && (monsterIndex % cfg.buddyEveryNth === 0)) {
+          const buddyKind = classifyMonsterKind(monsterIndex, cfg);
+          obstacles.push(makeMonster(wx + 46, cfg, buddyKind));
+          monsterIndex++;
+        }
+      } else {
+        obstacles.push({ type: "child", wx, homeX: wx, y: GROUND_Y, w: 26, h: 42, jumpScored: false, hairVariant: i % 4, runPhase: 0 });
+      }
+      lastX = wx;
+      const spacing = cfg.baseSpacing - (cfg.baseSpacing - cfg.minSpacing) * p;
+      wx += spacing;
+      i++;
+    }
+
+    // Ambush monsters: appear behind the player once they've walked past a
+    // fixed trigger point deep in the hallway — attacking from both
+    // directions. Spread draws from the per-level knobs (ambushSpreadStart/
+    // End); kind draws from ambushMix, which is grunt-only on level 1 and
+    // sprinkles in a gym teacher or two on 2/3 (per BJ) — but NEVER thrower.
+    // A melee ambush at least has to close the distance before it can hit
+    // you, giving a real beat to react once you notice it behind you; a
+    // thrower ambush could throw almost immediately after popping in, with
+    // no equivalent warning (BJ hit this once and it read as unfair).
+    const ambushKindPattern = buildKindPattern(cfg.ambushMix, cfg.ambushCount);
+    for (let a = 0; a < cfg.ambushCount; a++) {
+      const t = cfg.ambushCount > 1 ? a / (cfg.ambushCount - 1) : 0.5;
+      const activateAtX = cfg.startOffset + span * (cfg.ambushSpreadStart + (cfg.ambushSpreadEnd - cfg.ambushSpreadStart) * t);
+      const kind = ambushKindPattern[a];
+      obstacles.push({
+        type: "monster", ambush: true, activated: false, activateAtX,
+        behindOffset: 190 + (a % 3) * 30,
+        wx: 0, homeX: 0, y: GROUND_Y, w: 44, h: 68, dead: false, hitFlash: 0, hitCooldown: 0,
+        state: "idle", facing: -1, attackTimer: 0, kind, hp: kind === "tough" ? 2 : 1, maxHp: kind === "tough" ? 2 : 1,
+        speed: cfg.monsterSpeed * 1.1, walkPhase: 0
+      });
+    }
+
+    // Health pack pickups: a coffee cup (in front of a coffee station) about
+    // 60% through the hallway, and a second one just before the boss — each
+    // heals 50% of max HP.
+    const healthPackXs = [
+      cfg.startOffset + span * 0.6,
+      Math.max(cfg.startOffset, lastX + 60),
+    ];
+    healthPackXs.forEach(hx => {
+      obstacles.push({ type: "healthpack", wx: hx, y: GROUND_Y, w: 30, h: 46, collected: false });
+    });
+
+    return {
+      length: cfg.length, obstacles,
+      bossTriggerX: lastX + 260, bossHomeX: cfg.length - 90,
+      bossHp: cfg.bossHp, monsterAttackInterval: cfg.monsterAttackInterval,
+      bossAttackInterval: cfg.bossAttackInterval, bossTitle: cfg.bossTitle
+    };
+  }
+
+  // ---------- Game state ----------
+  let state = "start"; // start | playing | bossfight | levelComplete | gameOver | win
+  let levelIndex = 0;
+  let score = 0;
+  let sessionMaxScore = 0;
+  let powerMeter = 0; // fills from kills; carries across levels like score, resets on retry/restart like score
+  let lives = 3; // whole-run budget, not per-level — only resetGame() refills it
+  // Repeating score-based bonus life (BJ's "extra guy at 7,000 pts") — fires
+  // again every 7,000 on top of that (14,000, 21,000, ...). maxLivesThisRun
+  // only ever grows, so updateLivesUI can keep showing every life the run
+  // has earned (including already-lost ones) instead of capping at 3 icons.
+  const EXTRA_LIFE_SCORE_INTERVAL = 7000;
+  let nextLifeThreshold = EXTRA_LIFE_SCORE_INTERVAL;
+  let maxLivesThisRun = 3;
+  let lastWaypointX = null; // last coffee-station passed this level; null = respawn at level start
+  let level = null;
+  let cameraX = 0;
+  let lastTime = 0;
+  const books = [];
+  const webProjectiles = []; // SUPERINTENDENT's thrown webs — see updateWebProjectiles
+
+  const player = {
+    worldX: 150, sx: 150, y: GROUND_Y, vy: 0, w: 40, h: 70,
+    jumping: false, crouching: false, facing: 1,
+    action: null, actionTimer: 0, actionCrouched: false, actionFacing: 1,
+    hitCooldown: 0, stunTimer: 0, walkPhase: 0, hp: 100,
+    powering: false, powerTimer: 0,
+    webbed: false, webbedTimer: 0
+  };
+
+  let boss = null;
+  const keys = {};
+
+  const FOLLOW_OFFSET = 125;
+  const PLAYER_SPEED = 210;
+  const GRAVITY = 2000;
+  const JUMP_VELOCITY = -680;
+  const ACTION_DURATION = 320; // ms
+  const ACTION_ACTIVE_START = 90;
+  const ACTION_ACTIVE_END = 200;
+  const ATTACK_REACH_PUNCH = 36;
+  const ATTACK_REACH_KICK = 72; // kick reaches twice as far as punch
+  const POINTS_PUNCH = 200;
+  const POINTS_KICK = 100;
+  const CHILD_RANGE = 34;
+  const JUMP_CLEAR_HEIGHT = 26; // how high above ground counts as "cleared"
+  const AGGRO_RANGE = 260;
+  const PATROL_RANGE = 45; // how far a bored melee zombie wanders from its spawn point
+  const PATROL_SPEED_MULT = 0.3; // fraction of chase speed — a lazy shuffle, not a chase
+  const MONSTER_ATTACK_RANGE = 76;
+  const MONSTER_WINDUP_MS = 460;
+  const MONSTER_ATTACK_MS = 240;
+  const MONSTER_CHASE_SPEED_MULT = 1.55;
+  const CHILD_SLOW_MULT = 0.12;
+  const THROW_RANGE = 390; // also doubles as the thrower's detection range (see updateThrowerState) — she can throw from as far as she can spot you
+  // How far past a respawn point an ambush's trigger gets pushed if it was
+  // already behind the new spawn — see resetMonsters. Comfortably past
+  // THROW_RANGE so a re-armed ambush thrower can't instantly detect/throw
+  // the moment the player takes their first step forward.
+  const RESPAWN_AMBUSH_GRACE = 420;
+  const THROWER_WINDUP_MS = 500;
+  const BOOK_SPEED = 300;
+  const BOOK_DAMAGE = 10;
+  const BOOK_HIT_RADIUS = 24;
+  // Standing player art is ~163 world-px tall (idle.png height * PLAYER_SPRITE_SCALE),
+  // crouch art ~118 — thrown at standing head level (not the old 46, which read as a
+  // low body-height throw that never looked like ducking should matter) so it's
+  // visually obvious a crouch takes the head below the book's flight path. Dodge
+  // logic itself is unaffected: the hit check is purely !player.crouching, not
+  // height-based, so this is a pure readability fix. Nudged down from 145 (BJ's
+  // report: read as too high to land a standing or jump punch on) — still kept
+  // comfortably above the ~118 crouch height so ducking still visibly clears it.
+  const BOOK_THROW_HEIGHT = 130;
+  const FIRE_WINDUP_MS = 700;
+  const FIRE_BREATH_MS = 500;
+  const FIRE_RANGE = 240;
+  const FIRE_DAMAGE = 34;
+  // SUPERINTENDENT's (level 3 boss, final fight) signature move, per BJ's
+  // spec: windup -> throws an actual traveling web projectile (punchable/
+  // kickable out of the air, like the thrower's books) -> reels itself up
+  // and off-screen for a beat -> crashes back down. If the web caught the
+  // player, the crash targets their (now frozen) position for a guaranteed
+  // hit. If the web missed or was destroyed, the crash instead targets
+  // wherever the player was standing when the boss jumped — a fixed spot,
+  // not a live tracker — so they have a real window to walk out from under
+  // it, then punish the landing while the boss is dazed. This boss has no
+  // plain melee art, so per BJ it's simply never vulnerable outside that
+  // dazed window (plus a small Power Clean chip) — see the hasWebAttack
+  // branch in updateBoss's `vulnerable` calc.
+  const WEB_WINDUP_MS = 600;
+  const WEB_THROW_MS = 400;
+  const WEB_PROJECTILE_SPEED = 480;
+  const WEB_CATCH_RADIUS = 30;
+  const WEB_PROJECTILE_MAX_TRAVEL = 500; // despawns as a clean miss if it hasn't hit or been punched out by here
+  const WEB_STUN_MS = 4000; // how long a caught player is cocooned and immobile
+  const WEB_PULLUP_MS = 500; // rise portion of climbing off-screen
+  const WEB_OFFSCREEN_MS = 2000; // BJ's "delay of two seconds" before the boss falls
+  const WEB_AIR_HEIGHT = 420; // how far up/off-canvas the boss climbs
+  const WEB_CRASH_MS = 600;
+  const WEB_CRASH_FALL_MS = WEB_CRASH_MS * 0.55; // first phase of webcrash: falling; impact resolves at the end of it
+  const WEB_DAZED_MS = 1300; // vulnerable window after a landed-but-missed crash
+  const CRASH_RADIUS = 110;
+  const CRASH_DAMAGE = 30;
+  // Power scales with how tough the kill was, not a flat per-kill amount —
+  // grunt (male teacher) is the baseline "takes 22 to fill the bar" unit;
+  // thrower (female teacher) gives 50% more, tough (gym teacher) gives
+  // double. POWER_MAX chosen as a multiple of 22 so grunt's share comes out
+  // to a clean whole number instead of a repeating fraction.
+  const POWER_MAX = 220;
+  const POWER_PER_KILL = { grunt: 10, thrower: 15, tough: 20 };
+  const POWER_CLEAN_DURATION_MS = 1500; // whole game freezes for this beat, like the boss emerge/taunt cutscenes
+
+  function currentAttackReach() {
+    return player.action === "kick" ? ATTACK_REACH_KICK : ATTACK_REACH_PUNCH;
+  }
+  function currentPoints() {
+    return player.action === "kick" ? POINTS_KICK : POINTS_PUNCH;
+  }
+
+  function damagePlayer(amount, stunMs, cooldownMs) {
+    player.hp -= amount;
+    player.stunTimer = stunMs;
+    player.hitCooldown = cooldownMs;
+    // Cancel any in-progress punch/kick. drawPlayer renders actionFacing
+    // (frozen at the moment that swing started) instead of the live
+    // player.facing for as long as player.action is set — left alone, a
+    // hit landing mid-swing kept the old attack's facing locked in for up
+    // to ACTION_DURATION (320ms) on top of the stun, on top of that stale
+    // pose, making a turn-and-retaliate feel unresponsive right when BJ
+    // most wanted it to work.
+    player.action = null;
+    player.actionTimer = 0;
+    playMoan();
+  }
+
+  function resetPlayer() {
+    player.worldX = 120; player.y = GROUND_Y; player.vy = 0; player.jumping = false;
+    player.crouching = false; player.facing = 1;
+    player.action = null; player.actionTimer = 0; player.actionCrouched = false; player.actionFacing = 1;
+    player.hitCooldown = 0; player.stunTimer = 0; player.hp = 100;
+    player.powering = false; player.powerTimer = 0;
+    player.webbed = false; player.webbedTimer = 0;
+  }
+
+  function resetGame() {
+    levelIndex = 0;
+    score = 0;
+    sessionMaxScore = 0;
+    powerMeter = 0;
+    lives = 3;
+    maxLivesThisRun = 3;
+    nextLifeThreshold = EXTRA_LIFE_SCORE_INTERVAL;
+    updateLivesUI();
+    startLevel(0);
+    state = "start";
+    showOnly("characterSelectOverlay");
+  }
+
+  function updateLivesUI() {
+    const wrap = document.getElementById("livesWrap");
+    wrap.innerHTML = "";
+    for (let i = 0; i < maxLivesThisRun; i++) {
+      const span = document.createElement("span");
+      span.className = "lifeIcon" + (i >= lives ? " lost" : "");
+      span.textContent = "🧹";
+      wrap.appendChild(span);
+    }
+  }
+
+  // Called once per frame — a `while` (not `if`) so a single huge score
+  // jump (e.g. a boss kill) that crosses more than one 7,000 threshold at
+  // once still grants every life it earned, not just one.
+  function checkExtraLife() {
+    while (score >= nextLifeThreshold) {
+      lives++;
+      maxLivesThisRun = Math.max(maxLivesThisRun, lives);
+      nextLifeThreshold += EXTRA_LIFE_SCORE_INTERVAL;
+      updateLivesUI();
+      triggerPop(player.worldX, player.y - 200, "EXTRA LIFE!", "#5cff8a");
+    }
+  }
+
+  function respawnPlayer() {
+    resetPlayer();
+    player.worldX = lastWaypointX ?? 120;
+    resetMonsters();
+  }
+
+  // Repopulates every regular monster (not the boss, which keeps whatever
+  // damage it had) back to its level-start condition — otherwise a respawn
+  // sends the player back through a hallway already cleared on the
+  // previous life, with nothing to fight until wherever they'd gotten to.
+  function resetMonsters() {
+    level.obstacles.forEach((o) => {
+      if (o.type !== "monster") return;
+      o.dead = false;
+      o.hp = o.maxHp;
+      o.hitFlash = 0;
+      o.hitCooldown = 0;
+      o.state = "idle";
+      o.facing = -1;
+      o.attackTimer = 0;
+      o.walkPhase = 0;
+      if (o.ambush) {
+        o.activated = false;
+        o.wx = 0;
+        // If this ambush's trigger point already sits behind the fresh
+        // respawn position, leaving activateAtX alone would fire it on the
+        // very next frame — she'd pop in already behind the player (that's
+        // the whole ambush mechanic) with zero chance to see it coming or
+        // react, same unfair "book from behind" BJ already flagged once for
+        // regular throwers. Push the trigger out to just ahead of the new
+        // spawn point instead, so it still fires, but only once the player
+        // has walked forward into it again.
+        if (o.activateAtX <= player.worldX) o.activateAtX = player.worldX + RESPAWN_AMBUSH_GRACE;
+      } else {
+        o.wx = o.homeX;
+        o.patrolDir = (Math.round(o.homeX) % 2 === 0) ? 1 : -1;
+      }
+    });
+  }
+
+  function startLevel(idx) {
+    levelIndex = idx;
+    level = buildLevel(idx);
+    boss = null;
+    books.length = 0;
+    webProjectiles.length = 0;
+    cameraX = 0;
+    lastWaypointX = null;
+    resetPlayer();
+    updateLivesUI();
+    document.getElementById("levelNum").textContent = String(idx + 1);
+    document.getElementById("bossHealthWrap").style.display = "none";
+    const track = LEVEL_MUSIC[Math.min(idx, LEVEL_MUSIC.length - 1)];
+    if (!bgMusic.src.endsWith(track)) {
+      const wasPlaying = audioGraphReady && !bgMusic.paused;
+      bgMusic.src = track;
+      if (wasPlaying) bgMusic.play().catch(() => {});
+    }
+  }
+
+  function showOnly(id) {
+    ["characterSelectOverlay","startOverlay","gameOverOverlay","levelCompleteOverlay","winOverlay"].forEach(o => {
+      document.getElementById(o).style.display = (o === id) ? "flex" : "none";
+    });
+  }
+
+  // ---------- Input ----------
+  window.addEventListener("keydown", (e) => {
+    if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"," ","Space"].includes(e.key) || e.code === "Space") e.preventDefault();
+    keys[e.key] = true;
+    if (state === "playing" || state === "bossfight") {
+      if (e.key === "z" || e.key === "Z") doAction("punch");
+      if (e.key === "x" || e.key === "X") doAction("kick");
+      if (e.key === "ArrowUp" || e.key === " " || e.code === "Space") doJump();
+      if (e.key === "c" || e.key === "C") triggerPowerClean();
+    }
+  });
+  window.addEventListener("keyup", (e) => { keys[e.key] = false; });
+
+  function bindHold(id, onDown, onUp) {
+    const el = document.getElementById(id);
+    const start = (e) => { e.preventDefault(); onDown(); };
+    const end = (e) => { e.preventDefault(); if (onUp) onUp(); };
+    el.addEventListener("mousedown", start);
+    el.addEventListener("mouseup", end);
+    el.addEventListener("mouseleave", end);
+    el.addEventListener("touchstart", start, { passive: false });
+    el.addEventListener("touchend", end, { passive: false });
+  }
+  bindHold("leftBtn", () => keys.padLeft = true, () => keys.padLeft = false);
+  bindHold("rightBtn", () => keys.padRight = true, () => keys.padRight = false);
+  bindHold("crouchBtn", () => keys.padCrouch = true, () => keys.padCrouch = false);
+  bindHold("jumpBtn", () => { if (state === "playing" || state === "bossfight") doJump(); });
+  bindHold("punchBtn", () => { if (state === "playing" || state === "bossfight") doAction("punch"); });
+  bindHold("kickBtn", () => { if (state === "playing" || state === "bossfight") doAction("kick"); });
+  bindHold("powerBtn", () => triggerPowerClean());
+
+  function doJump() {
+    if (!player.jumping && !player.crouching && player.stunTimer <= 0) {
+      player.jumping = true;
+      player.vy = JUMP_VELOCITY;
+    }
+  }
+
+  function doAction(type) {
+    if (player.action || player.stunTimer > 0) return;
+    ensureAudioCtx();
+    player.action = type;
+    player.actionTimer = 0;
+    player.actionCrouched = player.crouching;
+    player.actionFacing = player.facing;
+    shout();
+  }
+
+  // ---------- Boss ----------
+  function spawnBoss() {
+    // Only VICE PRINCIPAL (level 1) has the portal-emergence art — the
+    // other two spawn straight into "idle".
+    const hasPortalArt = level.bossTitle === "VICE PRINCIPAL";
+    boss = {
+      wx: level.bossHomeX, y: GROUND_Y, w: 74, h: 96,
+      hp: level.bossHp, maxHp: level.bossHp, title: level.bossTitle,
+      // emerging | idle | windup | attack | firewindup | firebreath | hurt |
+      // webwindup | webthrow | webpullup | webcrash | dazed | dead
+      state: hasPortalArt ? "emerging" : "idle",
+      emergeTimer: 0,
+      // Only VICE PRINCIPAL's art includes fire frames — PRINCIPAL skips
+      // straight from idle to a normal windup/attack instead.
+      hasFireAttack: level.bossTitle === "VICE PRINCIPAL",
+      // SUPERINTENDENT's only attack is the web/pull-up/crash combo (see
+      // WEB_* states in updateBoss) — it has no plain melee art.
+      hasWebAttack: level.bossTitle === "SUPERINTENDENT",
+      attackTimer: 0, hurtTimer: 0, hitFlash: 0, hitCooldown: 0, attackCount: 0, fireDir: 1,
+      airOffset: 0, crashLanded: false, crashTargetWx: 0, crashWasCapture: false
+    };
+    if (hasPortalArt) playBossEmergeMoan();
+    document.querySelector("#bossHealthWrap .label").textContent = level.bossTitle + " FURY";
+    document.getElementById("bossHealthWrap").style.display = "block";
+    updateBossBar();
+  }
+  function updateBossBar() {
+    if (!boss) return;
+    const pct = Math.max(0, boss.hp / boss.maxHp) * 100;
+    document.getElementById("bossHealthBarFill").style.width = pct + "%";
+  }
+
+  const pops = [];
+  function triggerPop(wx, y, text, color) {
+    pops.push({ wx, y, timer: 0, text: text || "POW!", color: color || "#fff040" });
+  }
+
+  // ---------- Power Clean ----------
+  // Chips a fixed, small amount off the boss (not a instant-kill wipe like
+  // it is for regular monsters) — keeps the ability useful mid-boss-fight
+  // without trivializing the fight the way a full board-clear would.
+  const POWER_CLEAN_BOSS_DAMAGE = 3;
+  function triggerPowerClean() {
+    if (powerMeter < POWER_MAX || player.powering) return;
+    if (state !== "playing" && state !== "bossfight") return;
+    powerMeter = 0;
+    player.powering = true;
+    player.powerTimer = 0;
+    // Screen-clear, not level-nuke: only monsters actually visible (with a
+    // small margin) die. Off-screen/not-yet-arrived monsters — including
+    // ambushes that haven't triggered yet — are untouched, same as they'd
+    // be to a punch or kick.
+    const screenMargin = 100;
+    let cleared = 0;
+    level.obstacles.forEach((o) => {
+      if (o.type !== "monster" || o.dead) return;
+      if (o.ambush && !o.activated) return;
+      const sx = o.wx - cameraX;
+      if (sx < -screenMargin || sx > W + screenMargin) return;
+      o.dead = true;
+      cleared++;
+    });
+    for (let i = books.length - 1; i >= 0; i--) {
+      const sx = books[i].wx - cameraX;
+      if (sx >= -screenMargin && sx <= W + screenMargin) books.splice(i, 1);
+    }
+    for (let i = webProjectiles.length - 1; i >= 0; i--) {
+      const sx = webProjectiles[i].wx - cameraX;
+      if (sx >= -screenMargin && sx <= W + screenMargin) webProjectiles.splice(i, 1);
+    }
+    if (cleared > 0) score += cleared * 15;
+    if (boss && boss.state !== "dead") {
+      boss.hp -= POWER_CLEAN_BOSS_DAMAGE;
+      boss.hitFlash = 180;
+      updateBossBar();
+      if (boss.hp <= 0) {
+        boss.state = "dead";
+        score += 500;
+        completeLevel();
+      }
+    }
+    playPowerCleanAudio();
+    // Android Chrome only — iOS Safari has never implemented the Vibration
+    // API, so this is a silent no-op there (BJ's own test device included).
+    // Scoped to Power Clean only, not punch/kick, per BJ's request.
+    if (navigator.vibrate) navigator.vibrate([40, 40, 120]);
+  }
+
+  // ---------- Update ----------
+  function updatePowerBarUI() {
+    const ready = powerMeter >= POWER_MAX;
+    document.getElementById("powerWrap").classList.toggle("ready", ready);
+    document.getElementById("powerBarFill").style.width = (powerMeter / POWER_MAX * 100) + "%";
+    document.getElementById("powerBtn").classList.toggle("ready", ready);
+  }
+
+  function update(dt) {
+    if (state !== "playing" && state !== "bossfight") return;
+    flickerClock += dt;
+    checkExtraLife();
+
+    // Power Clean freezes the whole fight for its duration — same beat as
+    // the boss emerge/taunt cutscenes — since all the monsters it clears
+    // die instantly at trigger time anyway; nothing meaningful needs to
+    // keep simulating underneath the flourish.
+    if (player.powering) {
+      player.powerTimer += dt * 1000;
+      if (player.powerTimer >= POWER_CLEAN_DURATION_MS) {
+        player.powering = false;
+        player.powerTimer = 0;
+      }
+      document.getElementById("healthBarFill").style.width = Math.max(0, player.hp) + "%";
+      document.getElementById("scoreNum").textContent = String(score);
+      updatePowerBarUI();
+      return;
+    }
+
+    let dir = 0;
+    if (keys.ArrowLeft || keys.padLeft) dir -= 1;
+    if (keys.ArrowRight || keys.padRight) dir += 1;
+    if (dir !== 0) player.facing = dir;
+
+    const wantsCrouch = (keys.ArrowDown || keys.s || keys.S || keys.padCrouch) &&
+      !player.jumping && player.stunTimer <= 0;
+    player.crouching = wantsCrouch;
+    if (player.crouching) dir = 0;
+
+    const heightAboveGroundPre = GROUND_Y - player.y;
+    const grounded = heightAboveGroundPre <= JUMP_CLEAR_HEIGHT;
+
+    let speedMult = 1;
+    for (const o of level.obstacles) {
+      if (o.type !== "child") continue;
+      o.wx -= CHILD_RUN_SPEED * dt;
+      o.runPhase = (o.runPhase || 0) + dt * 12;
+      if (grounded && Math.abs(o.wx - player.worldX) <= CHILD_RANGE) {
+        speedMult = Math.min(speedMult, CHILD_SLOW_MULT);
+      }
+    }
+
+    player.isMoving = dir !== 0 && player.stunTimer <= 0 && !player.crouching;
+    if (player.stunTimer <= 0 && !player.crouching) {
+      player.worldX += dir * PLAYER_SPEED * speedMult * dt;
+      player.worldX = Math.max(0, Math.min(level.length, player.worldX));
+      player.walkPhase += (dir !== 0 ? dt * 8 * speedMult : 0);
+    }
+
+    cameraX = Math.max(0, Math.min(Math.max(0, level.length - W), player.worldX - FOLLOW_OFFSET));
+    player.sx = player.worldX - cameraX;
+
+    if (player.jumping) {
+      player.vy += GRAVITY * dt;
+      player.y += player.vy * dt;
+      if (player.y >= GROUND_Y) {
+        player.y = GROUND_Y;
+        player.vy = 0;
+        player.jumping = false;
+      }
+    }
+
+    if (player.action) {
+      player.actionTimer += dt * 1000;
+      if (player.actionTimer >= ACTION_DURATION) {
+        player.action = null;
+        player.actionTimer = 0;
+      }
+    }
+    if (player.stunTimer > 0) {
+      player.stunTimer -= dt * 1000;
+      if (player.stunTimer < 0) player.stunTimer = 0;
+    }
+    if (player.hitCooldown > 0) player.hitCooldown -= dt * 1000;
+    // Being webbed re-uses stunTimer for the actual movement/jump/action
+    // lockout (see doJump/doAction/the dir-movement gate above), but tracks
+    // its own duration separately so an incidental hit from something else
+    // can't shorten it — every frame it re-floors stunTimer up to whatever
+    // webbed time remains.
+    if (player.webbed) {
+      player.webbedTimer -= dt * 1000;
+      if (player.webbedTimer <= 0) {
+        player.webbed = false;
+        player.webbedTimer = 0;
+      } else if (player.stunTimer < player.webbedTimer) {
+        player.stunTimer = player.webbedTimer;
+      }
+    }
+
+    const heightAboveGround = GROUND_Y - player.y;
+    const isActiveHit = player.action &&
+      player.actionTimer >= ACTION_ACTIVE_START && player.actionTimer <= ACTION_ACTIVE_END;
+
+    updateObstacles(dt, isActiveHit, heightAboveGround);
+    updateBooks(dt, isActiveHit);
+    updateWebProjectiles(dt, isActiveHit);
+
+    if (state === "playing" && player.worldX >= level.bossTriggerX) {
+      state = "bossfight";
+      spawnBoss();
+    }
+
+    if (state === "bossfight" && boss) {
+      updateBoss(dt, isActiveHit);
+    }
+
+    document.getElementById("healthBarFill").style.width = Math.max(0, player.hp) + "%";
+    document.getElementById("scoreNum").textContent = String(score);
+    const pct = Math.min(100, (player.worldX / level.length) * 100);
+    document.getElementById("progressBarFill").style.width = pct + "%";
+    updatePowerBarUI();
+
+    if (player.hp <= 0) {
+      lives -= 1;
+      updateLivesUI();
+      if (lives <= 0) {
+        endGame();
+      } else {
+        respawnPlayer();
+      }
+    }
+  }
+
+  const HEALTHPACK_RANGE = 34;
+  const HEALTHPACK_HEAL = 50;
+
+  function updateObstacles(dt, isActiveHit, heightAboveGround) {
+    for (const o of level.obstacles) {
+      if (o.type === "monster") {
+        updateMonster(o, dt, isActiveHit);
+      } else if (o.type === "healthpack") {
+        updateHealthPack(o);
+      } else {
+        updateChild(o, heightAboveGround);
+      }
+    }
+  }
+
+  function updateHealthPack(o) {
+    if (o.collected) return;
+    const absDist = Math.abs(o.wx - player.worldX);
+    if (absDist <= HEALTHPACK_RANGE) {
+      o.collected = true;
+      player.hp = Math.min(100, player.hp + HEALTHPACK_HEAL);
+      lastWaypointX = o.wx;
+      playHealChime();
+      playWaypointChime();
+      triggerPop(o.wx, o.y - 60, "+50 HP", "#5aff8a");
+    }
+  }
+
+  function updateChild(o, heightAboveGround) {
+    const absDist = Math.abs(o.wx - player.worldX);
+    if (!o.jumpScored && absDist <= CHILD_RANGE && heightAboveGround > JUMP_CLEAR_HEIGHT) {
+      o.jumpScored = true;
+      score += 10;
+    }
+  }
+
+  function updateMonster(o, dt, isActiveHit) {
+    if (o.dead) return;
+
+    if (o.ambush && !o.activated) {
+      if (player.worldX >= o.activateAtX) {
+        o.activated = true;
+        o.wx = player.worldX - o.behindOffset;
+        o.state = "chase";
+      } else {
+        return;
+      }
+    }
+
+    if (o.hitFlash > 0) o.hitFlash -= dt * 1000;
+    if (o.hitCooldown > 0) o.hitCooldown -= dt * 1000;
+
+    const dist = player.worldX - o.wx;
+    const absDist = Math.abs(dist);
+    // Attacks only land on whatever side the player was facing when the swing
+    // started (player.actionFacing) — a forward kick shouldn't also clear out
+    // a zombie standing behind. Leniency: a monster within half its own width
+    // of "behind" still counts as in front, since by then most of its body has
+    // already crossed the player and a real kick would still connect.
+    const signedDist = o.wx - player.worldX;
+    const facingOk = signedDist * player.actionFacing >= -(o.w / 2);
+
+    if (isActiveHit && facingOk && absDist < currentAttackReach() && (o.hitCooldown || 0) <= 0) {
+      o.hp -= 1;
+      o.hitFlash = 180;
+      o.hitCooldown = 300; // one hit per swing, even though the active frame spans several ticks
+      score += currentPoints();
+      shout();
+      triggerPop(o.wx, o.y - o.h);
+      if (o.hp <= 0) {
+        o.dead = true;
+        powerMeter = Math.min(POWER_MAX, powerMeter + (POWER_PER_KILL[o.kind] || POWER_PER_KILL.grunt));
+      }
+      return;
+    }
+
+    const DEAD_ZONE = 15;
+    let targetFacing = o.facing;
+    if (dist > DEAD_ZONE) targetFacing = 1;
+    else if (dist < -DEAD_ZONE) targetFacing = -1;
+    // Only tracks the player once actually aggro'd. While idle/patrolling,
+    // facing is driven by patrol movement direction instead (set in
+    // updateMeleeState) — letting this run unconditionally fought with
+    // that every tick (this recomputes "face the player" from clear
+    // across the level, patrol recomputes "face the walk direction",
+    // back and forth) and every resulting flip used to force an
+    // instant, distance-ignoring jump to "chase" via the line this
+    // replaced, which is what caused monsters to aggro the moment they
+    // spawned regardless of AGGRO_RANGE.
+    if (o.state !== "idle") {
+      o.facing = targetFacing;
+    }
+
+    if (o.kind === "thrower") {
+      updateThrowerState(o, dt, absDist);
+    } else {
+      updateMeleeState(o, dt, absDist);
+    }
+  }
+
+  function updateMeleeState(o, dt, absDist) {
+    if (o.state === "idle") {
+      if (absDist <= AGGRO_RANGE) { o.state = "chase"; return; }
+      // Patrol a short stretch around the spawn point instead of standing
+      // still — turns around at the edge of the range, and overrides
+      // facing to match the walk direction (the outer facing-toward-
+      // player tracking in updateMonster() runs first each frame, before
+      // this, so this override is what actually wins while still idle).
+      const dir = o.patrolDir || 1;
+      o.wx += dir * o.speed * PATROL_SPEED_MULT * dt;
+      o.facing = dir;
+      o.walkPhase = (o.walkPhase || 0) + dt * 6;
+      if (o.wx >= o.homeX + PATROL_RANGE) { o.wx = o.homeX + PATROL_RANGE; o.patrolDir = -1; }
+      else if (o.wx <= o.homeX - PATROL_RANGE) { o.wx = o.homeX - PATROL_RANGE; o.patrolDir = 1; }
+      return;
+    }
+    if (o.state === "chase") {
+      const chaseSpeed = o.speed * MONSTER_CHASE_SPEED_MULT;
+      o.wx += Math.sign(player.worldX - o.wx || 1) * chaseSpeed * dt;
+      o.walkPhase = (o.walkPhase || 0) + dt * 10;
+      if (absDist > AGGRO_RANGE * 1.4) o.state = "idle";
+      else if (absDist <= MONSTER_ATTACK_RANGE) { o.state = "windup"; o.attackTimer = 0; }
+      return;
+    }
+    if (o.state === "windup") {
+      o.attackTimer += dt * 1000;
+      if (absDist > MONSTER_ATTACK_RANGE * 1.6) { o.state = "chase"; return; }
+      if (o.attackTimer >= MONSTER_WINDUP_MS) {
+        o.state = "attack";
+        o.attackTimer = 0;
+        if (absDist <= MONSTER_ATTACK_RANGE && player.hitCooldown <= 0) {
+          damagePlayer(o.kind === "tough" ? 25 : 15, 320, 500);
+        }
+      }
+      return;
+    }
+    if (o.state === "attack") {
+      o.attackTimer += dt * 1000;
+      if (o.attackTimer >= MONSTER_ATTACK_MS) {
+        o.state = absDist <= AGGRO_RANGE ? "chase" : "idle";
+        o.attackTimer = 0;
+      }
+    }
+  }
+
+  function updateThrowerState(o, dt, absDist) {
+    if (o.state === "idle") {
+      // Every monster spawns facing left (see resetMonsters) waiting for
+      // the player to approach from that side — "in front of her" is the
+      // player being to her left (player.worldX <= o.wx). Without this,
+      // a thrower who happens to end up behind a respawn point (the
+      // waypoint places the player past her) would nail the player with a
+      // book the instant they respawn, purely on distance, with zero
+      // chance to see it coming or react — she's technically "not looking
+      // that way." This only gates the fresh idle->chase detection; an
+      // ambush thrower (who spawns already engaged, deliberately behind
+      // the player) sets its state directly and never passes through here.
+      if (absDist <= THROW_RANGE && player.worldX <= o.wx) o.state = "chase";
+      return;
+    }
+    if (o.state === "chase") {
+      if (absDist > THROW_RANGE) {
+        const chaseSpeed = o.speed * MONSTER_CHASE_SPEED_MULT * 0.8;
+        o.wx += Math.sign(player.worldX - o.wx || 1) * chaseSpeed * dt;
+      }
+      if (absDist > THROW_RANGE * 1.4) o.state = "idle";
+      else if (absDist <= THROW_RANGE) { o.state = "throwWindup"; o.attackTimer = 0; }
+      return;
+    }
+    if (o.state === "throwWindup") {
+      o.attackTimer += dt * 1000;
+      if (absDist > THROW_RANGE * 1.3) { o.state = "chase"; return; }
+      if (o.attackTimer >= THROWER_WINDUP_MS) {
+        o.state = "throwing";
+        o.attackTimer = 0;
+        const dir = (player.worldX >= o.wx) ? 1 : -1;
+        books.push({ wx: o.wx + dir * 30, y: GROUND_Y - BOOK_THROW_HEIGHT, dir, speed: BOOK_SPEED, spin: 0 });
+      }
+      return;
+    }
+    if (o.state === "throwing") {
+      o.attackTimer += dt * 1000;
+      if (o.attackTimer >= 220) { o.state = "cooldown"; o.attackTimer = 0; }
+      return;
+    }
+    if (o.state === "cooldown") {
+      o.attackTimer += dt * 1000;
+      if (o.attackTimer >= o.throwInterval) {
+        o.state = absDist <= THROW_RANGE ? "throwWindup" : "chase";
+        o.attackTimer = 0;
+      }
+    }
+  }
+
+  function updateBooks(dt, isActiveHit) {
+    for (let i = books.length - 1; i >= 0; i--) {
+      const b = books[i];
+      b.wx += b.dir * b.speed * dt;
+      b.spin += dt * 14;
+      const dist = Math.abs(b.wx - player.worldX);
+
+      // Was `currentAttackReach() * 0.6` (21.6 for a punch) — smaller than
+      // BOOK_HIT_RADIUS (24), so a punch's reflect window sat entirely
+      // inside the book's own hit radius: as it closed in, "it can hit you"
+      // triggered before "you can reflect it" ever did, and the punch
+      // basically never connected (kick's dampened reach, 43.2, happened to
+      // clear both radii, which is why only the punch read as broken).
+      // Using the same undampened reach as every other reach check in the
+      // file fixes it and matches how monster/boss hits already work.
+      if (isActiveHit && dist < currentAttackReach()) {
+        score += currentPoints();
+        shout();
+        if (player.action === "punch" && !b.reflected) {
+          // Punching a book reflects it back the way it came instead of
+          // destroying it — it can now knock out any monster (including
+          // the thrower who threw it) it flies into on the way back.
+          b.dir *= -1;
+          b.reflected = true;
+          triggerPop(b.wx, b.y - 10, "REFLECTED!", "#40ffcf");
+        } else {
+          triggerPop(b.wx, b.y - 10);
+          books.splice(i, 1);
+        }
+        continue;
+      }
+      if (b.reflected) {
+        let consumed = false;
+        for (const o of level.obstacles) {
+          if (o.type !== "monster" || o.dead) continue;
+          if (o.ambush && !o.activated) continue;
+          if (Math.abs(o.wx - b.wx) >= BOOK_HIT_RADIUS + o.w / 2) continue;
+          o.hp -= 1;
+          o.hitFlash = 180;
+          triggerPop(o.wx, o.y - o.h, "BONK!", "#ffcf40");
+          if (o.hp <= 0) {
+            o.dead = true;
+            powerMeter = Math.min(POWER_MAX, powerMeter + (POWER_PER_KILL[o.kind] || POWER_PER_KILL.grunt));
+          }
+          score += POINTS_PUNCH;
+          books.splice(i, 1);
+          consumed = true;
+          break;
+        }
+        if (consumed) continue;
+      }
+      if (!b.reflected && dist < BOOK_HIT_RADIUS && !player.crouching && player.hitCooldown <= 0) {
+        damagePlayer(BOOK_DAMAGE, 220, 450);
+        books.splice(i, 1);
+        continue;
+      }
+      if (dist > 650) books.splice(i, 1);
+    }
+  }
+
+  // SUPERINTENDENT's thrown web — same shape as updateBooks (punch/kick to
+  // destroy in flight) but no reflect mechanic, and instead of damage a
+  // clean hit applies the webbed status (see updateBoss's webcrash branch
+  // for the guaranteed-hit payoff that follows a successful catch).
+  function updateWebProjectiles(dt, isActiveHit) {
+    for (let i = webProjectiles.length - 1; i >= 0; i--) {
+      const w = webProjectiles[i];
+      w.wx += w.dir * w.speed * dt;
+      const dist = Math.abs(w.wx - player.worldX);
+
+      // Same fix as updateBooks: the dampened reach (punch: 21.6) sat
+      // inside WEB_CATCH_RADIUS (30), so a punch could get caught before it
+      // could ever destroy the web. Undampened reach here too.
+      if (isActiveHit && dist < currentAttackReach()) {
+        score += currentPoints();
+        shout();
+        triggerPop(w.wx, w.y - 10, "DESTROYED!", "#40ffcf");
+        webProjectiles.splice(i, 1);
+        continue;
+      }
+      if (dist < WEB_CATCH_RADIUS && !player.crouching && !player.webbed) {
+        player.webbed = true;
+        player.webbedTimer = WEB_STUN_MS;
+        player.stunTimer = WEB_STUN_MS; // lock immediately, same frame — see the sync note in update()
+        player.action = null;
+        player.actionTimer = 0;
+        triggerPop(w.wx, w.y - 10, "WEBBED!", "#e8e8ff");
+        webProjectiles.splice(i, 1);
+        continue;
+      }
+      if (Math.abs(w.wx - w.startWx) > WEB_PROJECTILE_MAX_TRAVEL) webProjectiles.splice(i, 1);
+    }
+  }
+
+  function updateBoss(dt, isActiveHit) {
+    if (!boss || boss.state === "dead") return;
+    if (boss.hitFlash > 0) boss.hitFlash -= dt * 1000;
+    if (boss.hitCooldown > 0) boss.hitCooldown -= dt * 1000;
+
+    if (boss.state === "emerging") {
+      boss.emergeTimer += dt * 1000;
+      if (boss.emergeTimer >= BOSS_EMERGE_TOTAL_MS) {
+        boss.state = "taunting";
+        boss.tauntIndex = 0;
+        boss.tauntTimer = 0;
+      }
+      return; // not vulnerable or attacking until fully out of the portal
+    }
+
+    if (boss.state === "taunting") {
+      boss.tauntTimer += dt * 1000;
+      const line = BOSS_TAUNT_LINES[boss.tauntIndex];
+      if (boss.tauntTimer >= line.durationMs) {
+        boss.tauntIndex++;
+        boss.tauntTimer = 0;
+        if (boss.tauntIndex >= BOSS_TAUNT_LINES.length) {
+          boss.state = "idle";
+          boss.attackTimer = 0;
+        }
+      }
+      return; // not vulnerable or attacking during the pre-fight dialogue either
+    }
+
+    if (boss.state === "hurt") {
+      boss.hurtTimer -= dt * 1000;
+      if (boss.hurtTimer <= 0) boss.state = "idle";
+    }
+
+    if (boss.state === "idle" || boss.state === "hurt") {
+      boss.attackTimer += dt * 1000;
+      if (boss.attackTimer >= level.bossAttackInterval) {
+        boss.attackCount++;
+        boss.attackTimer = 0;
+        if (boss.hasWebAttack) {
+          boss.state = "webwindup";
+        } else if (boss.hasFireAttack && boss.attackCount % 3 === 0) {
+          boss.state = "firewindup";
+        } else {
+          boss.state = "windup";
+        }
+      }
+    } else if (boss.state === "windup") {
+      boss.attackTimer += dt * 1000;
+      if (boss.attackTimer >= 500) {
+        boss.state = "attack";
+        boss.attackTimer = 0;
+        const dist = Math.abs(boss.wx - player.worldX);
+        if (dist < 130 && player.hitCooldown <= 0) {
+          damagePlayer(22, 400, 600);
+        }
+      }
+    } else if (boss.state === "attack") {
+      boss.attackTimer += dt * 1000;
+      if (boss.attackTimer >= 350) {
+        boss.state = "idle";
+        boss.attackTimer = 0;
+      }
+    } else if (boss.state === "firewindup") {
+      boss.attackTimer += dt * 1000;
+      if (boss.attackTimer >= FIRE_WINDUP_MS) {
+        boss.state = "firebreath";
+        boss.attackTimer = 0;
+        boss.fireDir = (player.worldX >= boss.wx) ? 1 : -1;
+        const dist = Math.abs(boss.wx - player.worldX);
+        const heightAboveGround = GROUND_Y - player.y;
+        if (dist < FIRE_RANGE && heightAboveGround <= JUMP_CLEAR_HEIGHT && player.hitCooldown <= 0) {
+          damagePlayer(FIRE_DAMAGE, 500, 700);
+        }
+      }
+    } else if (boss.state === "firebreath") {
+      boss.attackTimer += dt * 1000;
+      if (boss.attackTimer >= FIRE_BREATH_MS) {
+        boss.state = "idle";
+        boss.attackTimer = 0;
+      }
+    } else if (boss.state === "webwindup") {
+      boss.attackTimer += dt * 1000;
+      if (boss.attackTimer >= WEB_WINDUP_MS) {
+        boss.state = "webthrow";
+        boss.attackTimer = 0;
+        const dir = (player.worldX >= boss.wx) ? 1 : -1;
+        webProjectiles.push({
+          wx: boss.wx + dir * 30, y: GROUND_Y - BOOK_THROW_HEIGHT,
+          dir, speed: WEB_PROJECTILE_SPEED, startWx: boss.wx
+        });
+      }
+    } else if (boss.state === "webthrow") {
+      boss.attackTimer += dt * 1000;
+      if (boss.attackTimer >= WEB_THROW_MS) {
+        boss.state = "webpullup";
+        boss.attackTimer = 0;
+        boss.airOffset = 0;
+        // Recorded once, right as he jumps — this is the "fixed spot, not a
+        // live tracker" BJ asked for: if the web missed, the eventual crash
+        // targets wherever the player was standing right now, not wherever
+        // they end up after two seconds of free movement.
+        boss.crashTargetWx = player.worldX;
+      }
+    } else if (boss.state === "webpullup") {
+      boss.attackTimer += dt * 1000;
+      boss.airOffset = -WEB_AIR_HEIGHT * Math.min(1, boss.attackTimer / WEB_PULLUP_MS);
+      if (boss.attackTimer >= WEB_OFFSCREEN_MS) {
+        boss.state = "webcrash";
+        boss.attackTimer = 0;
+        boss.crashLanded = false;
+        // If the web connected, the player is still cocooned (frozen) right
+        // now, so "their position at landing" and "their position when he
+        // jumped" are the same spot anyway — falling back on crashTargetWx
+        // for that case too keeps this a single code path either way.
+        boss.crashWasCapture = player.webbed;
+        boss.wx = boss.crashTargetWx;
+      }
+    } else if (boss.state === "webcrash") {
+      boss.attackTimer += dt * 1000;
+      boss.airOffset = -WEB_AIR_HEIGHT * Math.max(0, 1 - boss.attackTimer / WEB_CRASH_FALL_MS);
+      if (!boss.crashLanded && boss.attackTimer >= WEB_CRASH_FALL_MS) {
+        boss.crashLanded = true;
+        if (boss.crashWasCapture) {
+          // The payoff for a successful web catch — guaranteed, no dodge
+          // possible since the player couldn't move. This also breaks them
+          // free of the web (clearing it ends the lockout early rather
+          // than making them sit out the rest of the 4s on top of it).
+          player.webbed = false;
+          player.webbedTimer = 0;
+          damagePlayer(CRASH_DAMAGE, 500, 700);
+        } else {
+          const dist = Math.abs(boss.wx - player.worldX);
+          if (dist < CRASH_RADIUS && player.hitCooldown <= 0) {
+            damagePlayer(CRASH_DAMAGE, 500, 700);
+          }
+        }
+      }
+      if (boss.attackTimer >= WEB_CRASH_MS) {
+        boss.attackTimer = 0;
+        boss.airOffset = 0;
+        // A landed capture cost the player a big free hit already — no
+        // extra punish window. A missed/parried web is the only time this
+        // boss is ever actually vulnerable (besides Power Clean chip), so a
+        // whiffed crash is the one real opening in the whole fight.
+        boss.state = boss.crashWasCapture ? "idle" : "dazed";
+      }
+    } else if (boss.state === "dazed") {
+      boss.attackTimer += dt * 1000;
+      if (boss.attackTimer >= WEB_DAZED_MS) {
+        boss.state = "idle";
+        boss.attackTimer = 0;
+      }
+    }
+
+    const dist = Math.abs(boss.wx - player.worldX);
+    // SUPERINTENDENT has no plain melee art or attack, so per BJ it's never
+    // a normal punch-him-in-idle fight like the other two bosses — the only
+    // openings are the post-miss dazed window (plus Power Clean, which
+    // ignores this flag entirely and always chips a little damage).
+    const vulnerable = boss.hasWebAttack
+      ? (boss.state === "dazed" || boss.state === "hurt")
+      : (boss.state !== "attack" && boss.state !== "firebreath");
+    if (isActiveHit && dist < currentAttackReach() + 20 && vulnerable && boss.hitCooldown <= 0) {
+      boss.hp -= 1;
+      boss.hitFlash = 180;
+      boss.hitCooldown = 300; // one hit per swing, even though the active frame spans several ticks
+      boss.state = "hurt";
+      boss.hurtTimer = 260;
+      updateBossBar();
+      score += currentPoints();
+      shout();
+      triggerPop(boss.wx, boss.y - boss.h + 20);
+      if (boss.hp <= 0) {
+        boss.state = "dead";
+        score += 500;
+        completeLevel();
+      }
+    }
+  }
+
+  function completeLevel() {
+    state = "levelComplete";
+    sessionMaxScore = Math.max(sessionMaxScore, score);
+    const isLast = levelIndex >= LEVELS.length - 1;
+    if (isLast) {
+      state = "win";
+      document.getElementById("finalScoreWin").textContent = String(score);
+      showOnly("winOverlay");
+      submitScoreIfQualifies(sessionMaxScore);
+    } else {
+      document.getElementById("levelCompleteTitle").textContent = "LEVEL " + (levelIndex + 1) + " CLEAR";
+      document.getElementById("levelCompleteText").textContent =
+        "The " + level.bossTitle + " has been subdued... for now. Score: " + score;
+      showOnly("levelCompleteOverlay");
+    }
+  }
+
+  function endGame() {
+    state = "gameOver";
+    sessionMaxScore = Math.max(sessionMaxScore, score);
+    document.getElementById("finalScoreGO").textContent = String(score);
+    showOnly("gameOverOverlay");
+    submitScoreIfQualifies(sessionMaxScore);
+  }
+
+  // ---------- Drawing ----------
+  function drawBackground() {
+    // Fills the gap above the scaled-down hallway art (see bgLevel.dy) with a
+    // flat color matching its own ceiling tone, plus everything below in
+    // case an image hasn't loaded yet.
+    ctx.fillStyle = BG_CEILING_FILL;
+    ctx.fillRect(0, 0, W, H);
+
+    // Tile the 4 hallway panels end-to-end, cycling through them in a
+    // fixed order (deterministic by world position, not random, so a
+    // given stretch of hallway always looks the same on replay). Each
+    // panel is much wider than the screen, so most frames only need 1-2
+    // draws here.
+    const bgLevel = bgLevels[Math.min(levelIndex, bgLevels.length - 1)];
+    const bgImages = bgLevel.images;
+    const firstIdx = Math.floor(cameraX / bgLevel.tileW);
+    for (let idx = firstIdx; idx * bgLevel.tileW < cameraX + W; idx++) {
+      const img = bgImages[((idx % bgImages.length) + bgImages.length) % bgImages.length];
+      const dx = idx * bgLevel.tileW - cameraX;
+      if (spriteReady(img)) {
+        ctx.drawImage(img, dx, bgLevel.dy, bgLevel.tileW, bgLevel.tileH);
+      }
+      const levelLights = LIGHTS_BY_LEVEL[levelIndex];
+      if (levelLights) {
+        const panel = ((idx % 4) + 4) % 4;
+        levelLights.forEach((light) => {
+          if (light.panel !== panel || !light.flicker) return;
+          const darkness = flickerDarkness(light.panel * 2 + light.x, flickerClock);
+          if (darkness <= 0.01) return;
+          const lx = dx + light.x * bgLevel.scale;
+          const ly = bgLevel.dy + light.y * bgLevel.scale;
+          const lr = light.r * bgLevel.scale;
+          const g = ctx.createRadialGradient(lx, ly + lr * 0.6, 0, lx, ly + lr * 0.6, lr * 1.8);
+          g.addColorStop(0, "rgba(4,4,8," + darkness + ")");
+          g.addColorStop(1, "rgba(4,4,8,0)");
+          ctx.fillStyle = g;
+          ctx.fillRect(lx - lr * 1.8, ly - lr * 0.6, lr * 3.6, lr * 2.8);
+        });
+      }
+    }
+
+    // boss-room door marker — gameplay UI, not art, so it stays a simple
+    // drawn overlay regardless of which hallway panel it lands on
+    const wallTop = 90;
+    const lockerBottom = GROUND_Y - 10;
+    const doorSx = level.length - cameraX;
+    if (doorSx > -70 && doorSx < W + 70) {
+      ctx.fillStyle = "#3a2a1a";
+      ctx.fillRect(doorSx - 30, wallTop, 60, lockerBottom - wallTop);
+      ctx.fillStyle = "#241a10";
+      ctx.fillRect(doorSx - 30, wallTop, 60, 8);
+      const title = level.bossTitle || "PRINCIPAL";
+      const words = title.split(" ");
+      const longest = Math.max(...words.map(w => w.length));
+      const fs = Math.max(8, Math.min(13, Math.floor(95 / longest)));
+      ctx.fillStyle = "#c02020";
+      ctx.font = "bold " + fs + "px sans-serif";
+      ctx.textAlign = "center";
+      words.forEach((w, i) => ctx.fillText(w, doorSx, wallTop + 30 + i * (fs + 3)));
+      ctx.fillStyle = "#e8d8a8";
+      ctx.beginPath(); ctx.arc(doorSx + 20, wallTop + 60, 2.5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function playerSpriteKey() {
+    const p = player;
+    if (p.jumping) {
+      if (p.action === "punch") return "jump_punch";
+      if (p.action === "kick") return "jump_kick";
+      return "jump";
+    }
+    // actionCrouched is only meaningful while an action is actually in
+    // progress — it's set once when the action starts and never cleared,
+    // so it must not be consulted once p.action goes back to null or it'll
+    // show a stale crouch-attack pose long after the attack ended.
+    if (p.action === "punch") return p.actionCrouched ? "crouch_punch" : "stand_punch";
+    if (p.action === "kick") return p.actionCrouched ? "crouch_kick" : "stand_kick";
+    if (p.crouching) return "crouch";
+    if (p.isMoving) return Math.sin(p.walkPhase) >= 0 ? "walk_right_1" : "walk_right_2";
+    if (PLAYER_DIRECTIONAL_IDLE[selectedCharacter]) {
+      return p.facing === -1 ? "idle_left" : "idle_right";
+    }
+    return "idle";
+  }
+
+  function drawPlayer() {
+    const p = player;
+    const sx = p.sx;
+    ctx.save();
+    ctx.translate(sx, p.y);
+
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 22, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (p.webbed) {
+      // Cocooned pose replaces the normal pose/action rig entirely — no
+      // facing flip (the wrap art doesn't read as directional) and no
+      // pose logic, since the player can't act at all while webbed.
+      if (spriteReady(webbedSprite)) {
+        const dw = webbedSprite.naturalWidth * WEBBED_SPRITE_SCALE;
+        const dh = webbedSprite.naturalHeight * WEBBED_SPRITE_SCALE;
+        ctx.drawImage(webbedSprite, -dw / 2, -dh, dw, dh);
+      }
+      ctx.restore();
+      return;
+    }
+
+    const facing = p.action ? p.actionFacing : p.facing;
+    const spriteKey = playerSpriteKey();
+    const img = playerSprites[spriteKey];
+    if (spriteReady(img)) {
+      const scale = PLAYER_SPRITE_SCALE * PLAYER_CHAR_SCALE[selectedCharacter] *
+        (PLAYER_SPRITE_SCALE_OVERRIDES[selectedCharacter][spriteKey] || 1);
+      const dw = img.naturalWidth * scale;
+      const dh = img.naturalHeight * scale;
+      // idle_left/idle_right are already drawn facing the right way — unlike
+      // every other pose, they must NOT go through the facing-based flip.
+      const preOriented = spriteKey === "idle_left" || spriteKey === "idle_right";
+      ctx.save();
+      ctx.scale(preOriented ? 1 : (facing === -1 ? -1 : 1), 1);
+      ctx.drawImage(img, -dw / 2, -dh, dw, dh);
+      ctx.restore();
+      if (p.stunTimer > 0) {
+        ctx.fillStyle = "#ffcf40";
+        ctx.font = "bold 16px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("!", 0, -dh - 6);
+      }
+    }
+
+    ctx.restore();
+  }
+
+  // ---------- Power Clean visuals ----------
+  // Screen-space (not world-translated) since player.powering freezes
+  // cameraX for the whole beat anyway — no scrolling to account for.
+  function drawPowerPose() {
+    const sx = player.sx;
+    const sprite = POWER_CLEAN_SPRITES[selectedCharacter];
+    if (!spriteReady(sprite)) { drawPlayer(); return; }
+    ctx.save();
+    ctx.translate(sx, player.y);
+    const scale = POWER_SPRITE_SCALE_BY_CHAR[selectedCharacter];
+    const dw = sprite.naturalWidth * scale;
+    const dh = sprite.naturalHeight * scale;
+    const inverted = POWER_SPRITE_FLIP_INVERTED[selectedCharacter];
+    const flipFacing = inverted ? (player.facing === 1 ? -1 : 1) : (player.facing === -1 ? -1 : 1);
+    ctx.scale(flipFacing, 1);
+    ctx.drawImage(sprite, -dw / 2, -dh, dw, dh);
+    ctx.restore();
+  }
+
+  function drawPowerWave() {
+    const t = player.powerTimer;
+    const waveDur = 900;
+    const p = Math.min(1, t / waveDur);
+    const fade = p < 0.75 ? 1 : Math.max(0, 1 - (p - 0.75) / 0.25);
+    if (fade <= 0) return;
+    const ease = 1 - Math.pow(1 - p, 3);
+    const cx = player.sx, cy = player.y - 90;
+    const maxR = Math.max(W, H) * 0.95;
+    const r = ease * maxR;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = fade;
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0, "rgba(210,245,255,0.05)");
+    g.addColorStop(0.75, "rgba(120,220,255,0.12)");
+    g.addColorStop(0.92, "rgba(255,255,255,0.6)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    for (let i = 0; i < 16; i++) {
+      const ang = (i / 16) * Math.PI * 2;
+      const len = 26 + (i % 3) * 10;
+      const x1 = cx + Math.cos(ang) * r;
+      const y1 = cy + Math.sin(ang) * r;
+      const x2 = cx + Math.cos(ang) * (r - len);
+      const y2 = cy + Math.sin(ang) * (r - len);
+      ctx.strokeStyle = "rgba(200,240,255,0.7)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.restore();
+  }
+
+  // Timed to add up to exactly POWER_CLEAN_DURATION_MS (220+900+380=1500) so
+  // the text finishes fading right as the freeze ends.
+  function drawPowerCleanText() {
+    const t = player.powerTimer;
+    const inDur = 220, holdDur = 900, outDur = 380;
+    let scale, alpha;
+    if (t < inDur) {
+      const p = t / inDur;
+      scale = 0.4 + 0.9 * (1 - Math.pow(1 - p, 2));
+      alpha = p;
+    } else if (t < inDur + holdDur) {
+      scale = 1.1 - 0.1 * Math.sin((t - inDur) / 120);
+      alpha = 1;
+    } else if (t < inDur + holdDur + outDur) {
+      const p = (t - inDur - holdDur) / outDur;
+      scale = 1.1 + p * 0.3;
+      alpha = 1 - p;
+    } else {
+      return;
+    }
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, alpha);
+    ctx.translate(W / 2, H * 0.32);
+    ctx.scale(scale, scale);
+    ctx.font = "900 46px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "#0a2a40";
+    ctx.strokeText("POWER CLEAN!", 0, 0);
+    const g = ctx.createLinearGradient(-140, 0, 140, 0);
+    g.addColorStop(0, "#bff6ff");
+    g.addColorStop(0.5, "#ffffff");
+    g.addColorStop(1, "#bff6ff");
+    ctx.fillStyle = g;
+    ctx.fillText("POWER CLEAN!", 0, 0);
+    ctx.restore();
+  }
+
+  // BJ's real zombie-teacher art for "grunt" monsters — "tough" and
+  // "thrower" don't have art yet, so they still fall through to the
+  // canvas-primitive drawMonster() below.
+  function drawGruntSprite(o) {
+    const sx = o.wx - cameraX;
+    if (sx < -80 || sx > W + 80) return;
+    ctx.save();
+    ctx.translate(sx, o.y);
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 22, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    let key;
+    if (o.hitFlash > 0) key = "hurt";
+    else if (o.state === "windup") key = "windup";
+    else if (o.state === "attack") key = "attack";
+    else if (o.state === "chase" || o.state === "idle") key = Math.sin(o.walkPhase || 0) >= 0 ? "walk_1" : "walk_2";
+    else key = "walk_1"; // windup
+
+    const img = gruntSprites[key];
+    if (spriteReady(img)) {
+      const dw = img.naturalWidth * MONSTER_SPRITE_SCALE;
+      const dh = img.naturalHeight * MONSTER_SPRITE_SCALE;
+      ctx.save();
+      // Art faces left natively; facing=1 (chasing from behind, e.g. an
+      // ambush) needs a horizontal flip to face right instead.
+      ctx.scale(o.facing === 1 ? -1 : 1, 1);
+      ctx.drawImage(img, -dw / 2, -dh, dw, dh);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    if (o.state !== "idle") {
+      ctx.save();
+      ctx.translate(sx, o.y - 175);
+      ctx.fillStyle = (o.state === "chase") ? "#ffd040" : "#ff3030";
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // BJ's real zombie-teacher art for "thrower" monsters. She only has one
+  // non-action pose (no separate walk cycle), so idle/chase/cooldown all
+  // share it — she barely moves in those states anyway (updateThrowerState
+  // only advances her x while out of throw range). The traveling book
+  // projectile itself is unaffected — that's the separate drawBook() below.
+  function drawThrowerSprite(o) {
+    const sx = o.wx - cameraX;
+    if (sx < -80 || sx > W + 80) return;
+    ctx.save();
+    ctx.translate(sx, o.y);
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 22, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    let key;
+    if (o.hitFlash > 0) key = "hurt";
+    else if (o.state === "throwWindup") key = "windup";
+    else if (o.state === "throwing") key = "throw";
+    else key = "idle"; // idle, chase, cooldown
+
+    const img = throwerSprites[key];
+    if (spriteReady(img)) {
+      const dw = img.naturalWidth * MONSTER_SPRITE_SCALE;
+      const dh = img.naturalHeight * MONSTER_SPRITE_SCALE;
+      ctx.save();
+      // Unlike the grunt's art, hers faces right natively (throwing arm
+      // winds up on the left, releases to the right) — so it's facing=-1
+      // that needs the flip here, the opposite condition from the grunt.
+      ctx.scale(o.facing === -1 ? -1 : 1, 1);
+      ctx.drawImage(img, -dw / 2, -dh, dw, dh);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    if (o.state !== "idle") {
+      ctx.save();
+      ctx.translate(sx, o.y - 190);
+      ctx.fillStyle = (o.state === "chase") ? "#ffd040" : "#ff3030";
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // BJ's real zombie-gym-teacher art for "tough" monsters (the 2-hit
+  // palette) — same pattern as drawGruntSprite. Only walk_1/walk_2/punch/
+  // hurt exist, no dedicated windup pose, so "windup" falls back to a
+  // walk frame same as "idle" does. HP pips (still relevant, tough takes
+  // 2 hits) and the aggro dot are repositioned for the taller real-art
+  // silhouette instead of the old fixed primitive offsets.
+  function drawToughSprite(o) {
+    const sx = o.wx - cameraX;
+    if (sx < -80 || sx > W + 80) return;
+    ctx.save();
+    ctx.translate(sx, o.y);
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 22, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    let key;
+    if (o.hitFlash > 0) key = "hurt";
+    else if (o.state === "attack") key = "punch";
+    else if (o.state === "chase" || o.state === "idle") key = Math.sin(o.walkPhase || 0) >= 0 ? "walk_1" : "walk_2";
+    else key = "walk_1"; // windup — no dedicated pose
+
+    const img = toughSprites[key];
+    if (spriteReady(img)) {
+      const dw = img.naturalWidth * MONSTER_SPRITE_SCALE;
+      const dh = img.naturalHeight * MONSTER_SPRITE_SCALE;
+      ctx.save();
+      ctx.scale(o.facing === 1 ? -1 : 1, 1);
+      ctx.drawImage(img, -dw / 2, -dh, dw, dh);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(sx, o.y - 180);
+    for (let hpI = 0; hpI < o.maxHp; hpI++) {
+      ctx.fillStyle = hpI < o.hp ? "#5aff7a" : "rgba(255,255,255,0.25)";
+      ctx.fillRect(-9 + hpI * 10, -3, 7, 7);
+    }
+    ctx.restore();
+
+    if (o.state !== "idle") {
+      ctx.save();
+      ctx.translate(sx, o.y - 195);
+      ctx.fillStyle = (o.state === "chase") ? "#ffd040" : "#ff3030";
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawMonster(o) {
+    if (o.kind === "grunt") { drawGruntSprite(o); return; }
+    if (o.kind === "thrower") { drawThrowerSprite(o); return; }
+    drawToughSprite(o);
+  }
+
+  // BJ's real coffee-station art — full pot before pickup, empty pot
+  // after. Maps directly onto the existing collected/!collected split
+  // (the station itself always stayed; now the whole scene changes
+  // instead of just a small primitive cup disappearing).
+  function drawHealthPack(o) {
+    const sx = o.wx - cameraX;
+    if (sx < -60 || sx > W + 60) return;
+    ctx.save();
+    ctx.translate(sx, o.y);
+
+    const img = coffeeSprites[o.collected ? "empty" : "full"];
+    if (spriteReady(img)) {
+      const dw = img.naturalWidth * COFFEE_SPRITE_SCALE;
+      const dh = img.naturalHeight * COFFEE_SPRITE_SCALE;
+      ctx.drawImage(img, -dw / 2, -dh, dw, dh);
+    }
+
+    ctx.restore();
+  }
+
+  // BJ's real kid art — 4 variants (girl_pigtail, boy_red, boy_green,
+  // girl_sari), each with 3 hand-drawn run frames cycled by runPhase.
+  // Kids only ever run leftward (dashing past the player toward the
+  // level start) and the art already faces that way, so no facing/flip
+  // logic is needed here unlike the monsters.
+  function drawChild(o) {
+    const sx = o.wx - cameraX;
+    if (sx < -60 || sx > W + 60) return;
+    ctx.save();
+    ctx.translate(sx, o.y);
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 14, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const frames = childSprites[o.hairVariant % childSprites.length];
+    const frameIdx = Math.floor(o.runPhase || 0) % frames.length;
+    const img = frames[frameIdx];
+    if (spriteReady(img)) {
+      const dw = img.naturalWidth * CHILD_SPRITE_SCALE;
+      const dh = img.naturalHeight * CHILD_SPRITE_SCALE;
+      ctx.drawImage(img, -dw / 2, -dh, dw, dh);
+    }
+
+    ctx.restore();
+  }
+
+  // BJ's real 3-frame book-rotation art, cycled by flight time instead of
+  // the old single-image ctx.rotate() — a discrete sprite-flip (same
+  // technique as a walk cycle) rather than a smooth spin, since we now
+  // have actual pre-drawn rotation snapshots instead of one flat icon.
+  function drawBook(b) {
+    const sx = b.wx - cameraX;
+    if (sx < -40 || sx > W + 40) return;
+    ctx.save();
+    ctx.translate(sx, b.y);
+
+    const frameIdx = Math.floor(b.spin / 2.1) % bookSprites.length;
+    const img = bookSprites[frameIdx];
+    if (spriteReady(img)) {
+      const dw = img.naturalWidth * BOOK_SPRITE_SCALE;
+      const dh = img.naturalHeight * BOOK_SPRITE_SCALE;
+      ctx.scale(b.dir === -1 ? -1 : 1, 1);
+      ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+    }
+    ctx.restore();
+  }
+
+  // BJ's "Web shot" art (see WEB_SHOT_SPRITE_SCALE above for the facing
+  // note — it's native-left, so the flip below is inverted relative to
+  // every other sprite in this file).
+  function drawWebProjectile(w) {
+    const sx = w.wx - cameraX;
+    if (sx < -60 || sx > W + 60) return;
+    ctx.save();
+    ctx.translate(sx, w.y);
+    if (spriteReady(webShotSprite)) {
+      const dw = webShotSprite.naturalWidth * WEB_SHOT_SPRITE_SCALE;
+      const dh = webShotSprite.naturalHeight * WEB_SHOT_SPRITE_SCALE;
+      ctx.scale(w.dir === 1 ? -1 : 1, 1);
+      ctx.drawImage(webShotSprite, -dw / 2, -dh / 2, dw, dh);
+    }
+    ctx.restore();
+  }
+
+  // Real art for the VICE PRINCIPAL (level 1's boss — BJ's "First boss"
+  // sheet is meant for the first level's fight, not the PRINCIPAL who
+  // actually shows up at the end of level 2):
+  // idle/fire_windup/fire_breath/punch/hurt/defeated. Native art faces
+  // right; the boss is stationary at bossHomeX so facing is just derived
+  // from which side the player is currently on, computed fresh each draw
+  // rather than tracked as a field. No dedicated windup pose for a
+  // regular punch exists, so that state borrows "idle" — the swing itself
+  // is what "attack" (punch.png) shows.
+  function drawBossSprite() {
+    const sx = boss.wx - cameraX;
+
+    if (boss.state === "emerging") {
+      const frameIdx = Math.min(
+        BOSS_PORTAL_FRAME_NAMES.length - 1,
+        Math.floor(boss.emergeTimer / BOSS_EMERGE_FRAME_MS)
+      );
+      const img = bossPortalSprites[BOSS_PORTAL_FRAME_NAMES[frameIdx]];
+      if (spriteReady(img)) {
+        const dw = img.naturalWidth * BOSS_SPRITE_SCALE;
+        const dh = img.naturalHeight * BOSS_SPRITE_SCALE;
+        // The portal itself (not the boss) visibly closes by emerge_4/5 —
+        // those frames have no flame art left — so the glow fades out over
+        // the same frames rather than staying lit under a boss who's fully
+        // stepped out of it.
+        const portalAlpha = Math.max(0, 1 - Math.max(0, frameIdx - 2) / 2);
+        if (portalAlpha > 0) {
+          // Pulsing additive glow, reusing flickerClock (already ticking every
+          // frame for the level-2/3 light flicker) so the portal reads as an
+          // active light source, not just a flat painted flame. Two layers: a
+          // broad dim red bloom and a tighter hot-magenta core, matching the
+          // art's own palette.
+          const pulse = 0.85 + 0.15 * Math.sin(flickerClock * 6);
+          const cx = sx, cy = boss.y - dh * 0.52;
+          const baseR = dh * 0.65 * pulse;
+          ctx.save();
+          ctx.globalCompositeOperation = "lighter";
+          ctx.globalAlpha = portalAlpha;
+          const outer = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseR * 1.7);
+          outer.addColorStop(0, "rgba(255,70,100,0.85)");
+          outer.addColorStop(0.55, "rgba(230,30,70,0.45)");
+          outer.addColorStop(1, "rgba(230,30,70,0)");
+          ctx.fillStyle = outer;
+          ctx.fillRect(cx - baseR * 1.7, cy - baseR * 1.7, baseR * 3.4, baseR * 3.4);
+          const inner = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseR * 0.7);
+          inner.addColorStop(0, "rgba(255,170,255,0.95)");
+          inner.addColorStop(1, "rgba(210,50,230,0)");
+          ctx.fillStyle = inner;
+          ctx.fillRect(cx - baseR * 0.7, cy - baseR * 0.7, baseR * 1.4, baseR * 1.4);
+          ctx.globalAlpha = 1;
+          ctx.globalCompositeOperation = "source-over";
+          ctx.restore();
+        }
+        ctx.save();
+        ctx.translate(sx, boss.y);
+        ctx.scale(-1, 1); // portal art faces the wrong way for this arena — always mirrored, not player-tracking
+        ctx.drawImage(img, -dw / 2, -dh, dw, dh);
+        ctx.restore();
+      }
+      return;
+    }
+
+    let key;
+    if (boss.state === "dead") key = "defeated";
+    else if (boss.state === "hurt") key = "hurt";
+    else if (boss.state === "attack") key = "punch";
+    else if (boss.state === "firewindup") key = "fire_windup";
+    else if (boss.state === "firebreath") key = "fire_breath";
+    else key = "idle"; // idle, windup
+
+    const img = boss1Sprites[key];
+    if (spriteReady(img)) {
+      const dw = img.naturalWidth * BOSS_SPRITE_SCALE;
+      const dh = img.naturalHeight * BOSS_SPRITE_SCALE;
+      const facing = player.worldX >= boss.wx ? 1 : -1;
+      ctx.save();
+      ctx.translate(sx, boss.y);
+      ctx.scale(facing === -1 ? -1 : 1, 1);
+      ctx.drawImage(img, -dw / 2, -dh, dw, dh);
+      ctx.restore();
+    }
+
+    // The sprite's own baked-in flame is a fixed short burst at the
+    // mouth; this separate particle stream extends visibly all the way
+    // to FIRE_RANGE so the real hit range still reads clearly.
+    if (boss.state === "firebreath") {
+      ctx.save();
+      ctx.translate(sx, boss.y);
+      const dir = boss.fireDir;
+      const mouthY = -180;
+      for (let f = 0; f < 6; f++) {
+        const t = f / 5;
+        const fx = dir * (20 + t * 200);
+        const fy = mouthY + Math.sin(t * 9 + boss.attackTimer * 0.03) * 10;
+        const r = 16 - t * 8;
+        ctx.fillStyle = f % 2 === 0 ? "#ff6020" : "#ffcf40";
+        ctx.globalAlpha = 0.85 - t * 0.5;
+        ctx.beginPath(); ctx.arc(fx, fy, r, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+  }
+
+  // Real art for the PRINCIPAL (level 2's boss — BJ's "Boss level two"
+  // sheet): idle/walk_1/walk_2/walk_3/attack_left/attack_right/stunned/
+  // ground. Attack art is pre-drawn facing both ways, so (unlike
+  // drawBossSprite's punch.png) no ctx.scale mirror is needed there —
+  // only the idle shuffle picks a single frame regardless of facing,
+  // since idle/walk poses read fine either way.
+  function drawBossSprite2() {
+    const sx = boss.wx - cameraX;
+    const dir = player.worldX >= boss.wx ? 1 : -1;
+
+    let key;
+    if (boss.state === "dead") key = "ground";
+    else if (boss.state === "hurt") key = "stunned";
+    else if (boss.state === "attack") key = dir === 1 ? "attack_right" : "attack_left";
+    else key = BOSS2_SHUFFLE_FRAMES[Math.floor(flickerClock / BOSS2_SHUFFLE_FRAME_S) % BOSS2_SHUFFLE_FRAMES.length]; // idle, windup
+
+    const img = boss2Sprites[key];
+    if (spriteReady(img)) {
+      const dw = img.naturalWidth * BOSS_SPRITE_SCALE;
+      const dh = img.naturalHeight * BOSS_SPRITE_SCALE;
+      ctx.save();
+      ctx.translate(sx, boss.y);
+      ctx.drawImage(img, -dw / 2, -dh, dw, dh);
+      ctx.restore();
+    }
+  }
+
+  // Real art for the SUPERINTENDENT (level 3's boss — BJ's "Superintendant"
+  // sheet): walk_1/2/3/web_throw/web_pull_up/crash_down/stunned/defeated.
+  // boss.airOffset (set in updateBoss's webpullup/webcrash branches) shifts
+  // the whole sprite vertically so it visibly climbs off the top of the
+  // canvas and slams back down — the art itself doesn't animate that, the
+  // y-translate does. No facing flip: the shuffle/pose art isn't
+  // direction-specific like the other two bosses' attacks.
+  function drawBossSprite3() {
+    const sx = boss.wx - cameraX;
+
+    let key;
+    if (boss.state === "dead") key = "defeated";
+    else if (boss.state === "hurt" || boss.state === "dazed") key = "stunned";
+    else if (boss.state === "webthrow") key = "web_throw";
+    else if (boss.state === "webpullup") key = "web_pull_up";
+    else if (boss.state === "webcrash") key = "crash_down";
+    else key = BOSS3_SHUFFLE_FRAMES[Math.floor(flickerClock / BOSS3_SHUFFLE_FRAME_S) % BOSS3_SHUFFLE_FRAMES.length]; // idle, webwindup
+
+    const img = boss3Sprites[key];
+    if (spriteReady(img)) {
+      const dw = img.naturalWidth * BOSS_SPRITE_SCALE;
+      const dh = img.naturalHeight * BOSS_SPRITE_SCALE;
+      ctx.save();
+      ctx.translate(sx, boss.y + boss.airOffset);
+      ctx.drawImage(img, -dw / 2, -dh, dw, dh);
+      ctx.restore();
+    }
+  }
+
+  function drawBoss() {
+    if (!boss) return;
+    if (boss.title === "VICE PRINCIPAL") {
+      drawBossSprite();
+    } else if (boss.title === "PRINCIPAL") {
+      drawBossSprite2();
+    } else if (boss.title === "SUPERINTENDENT") {
+      drawBossSprite3();
+    }
+  }
+
+  function drawPops(dt) {
+    for (let i = pops.length - 1; i >= 0; i--) {
+      const p = pops[i];
+      p.timer += dt * 1000;
+      if (p.timer > 400) { pops.splice(i, 1); continue; }
+      const sx = p.wx - cameraX;
+      ctx.save();
+      ctx.globalAlpha = 1 - p.timer / 400;
+      ctx.fillStyle = p.color;
+      ctx.font = "bold 22px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(p.text, sx, p.y - p.timer / 8);
+      ctx.restore();
+    }
+  }
+
+  // Wraps text to a fixed pixel width using ctx.measureText — assumes the
+  // font is already set on ctx by the caller.
+  function wrapText(text, maxWidth) {
+    const words = text.split(" ");
+    const lines = [];
+    let cur = "";
+    words.forEach((w) => {
+      const test = cur ? cur + " " + w : w;
+      if (cur && ctx.measureText(test).width > maxWidth) {
+        lines.push(cur);
+        cur = w;
+      } else {
+        cur = test;
+      }
+    });
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  // Pure canvas speech bubble (rounded rect + tail + wrapped text) for the
+  // pre-fight taunt dialogue — no image asset, so new lines/levels can reuse
+  // this for free. Anchored above whichever character is "speaking" and
+  // fades in/out at the start/end of its line's display window.
+  function drawTauntBubble() {
+    if (!boss || boss.state !== "taunting") return;
+    const line = BOSS_TAUNT_LINES[boss.tauntIndex];
+    if (!line) return;
+    const isBoss = line.speaker === "boss";
+    const anchorWx = isBoss ? boss.wx : player.worldX;
+    const anchorY = isBoss ? boss.y - 250 : player.y - 190;
+    const sx = anchorWx - cameraX;
+
+    const fadeMs = 150;
+    let alpha = 1;
+    if (boss.tauntTimer < fadeMs) alpha = boss.tauntTimer / fadeMs;
+    if (boss.tauntTimer > line.durationMs - fadeMs) {
+      alpha = Math.min(alpha, Math.max(0, (line.durationMs - boss.tauntTimer) / fadeMs));
+    }
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = "bold 15px sans-serif";
+    const maxTextWidth = 220;
+    const lines = wrapText(line.text, maxTextWidth);
+    const lineHeight = 19;
+    const padX = 14, padY = 11;
+    const textWidth = Math.min(maxTextWidth, Math.max(...lines.map((l) => ctx.measureText(l).width)));
+    const bubbleW = textWidth + padX * 2;
+    const bubbleH = lines.length * lineHeight + padY * 2;
+    // Clamp to the canvas so the bubble never bleeds off-screen (the boss
+    // sits near the level's right edge, where a centered bubble would
+    // otherwise run past W) — the tail is clamped separately so it still
+    // points at the real speaker even when the box itself has shifted.
+    const edgeMargin = 8;
+    const bx = Math.max(edgeMargin, Math.min(W - bubbleW - edgeMargin, sx - bubbleW / 2));
+    const tailX = Math.max(bx + 14, Math.min(bx + bubbleW - 14, sx));
+    const by = anchorY - bubbleH;
+    const r = 10;
+
+    ctx.fillStyle = "#fff8e6";
+    ctx.strokeStyle = "#1a1410";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(bx + r, by);
+    ctx.lineTo(bx + bubbleW - r, by);
+    ctx.quadraticCurveTo(bx + bubbleW, by, bx + bubbleW, by + r);
+    ctx.lineTo(bx + bubbleW, by + bubbleH - r);
+    ctx.quadraticCurveTo(bx + bubbleW, by + bubbleH, bx + bubbleW - r, by + bubbleH);
+    ctx.lineTo(bx + r, by + bubbleH);
+    ctx.quadraticCurveTo(bx, by + bubbleH, bx, by + bubbleH - r);
+    ctx.lineTo(bx, by + r);
+    ctx.quadraticCurveTo(bx, by, bx + r, by);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(tailX - 10, by + bubbleH - 2);
+    ctx.lineTo(tailX, by + bubbleH + 16);
+    ctx.lineTo(tailX + 10, by + bubbleH - 2);
+    ctx.closePath();
+    ctx.fillStyle = "#fff8e6";
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#1a1410";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const textCenterX = bx + bubbleW / 2;
+    lines.forEach((l, i) => {
+      ctx.fillText(l, textCenterX, by + padY + lineHeight * i + lineHeight / 2);
+    });
+    ctx.restore();
+  }
+
+  function draw(dt) {
+    drawBackground();
+    // Health packs draw in their own pass, before anything that walks —
+    // they're a background prop sitting against the wall, not a
+    // character, so they should never paint over a monster/kid crossing
+    // in front of them the way array-order drawing let happen before.
+    level.obstacles.forEach(o => {
+      if (o.type === "healthpack") drawHealthPack(o);
+    });
+    level.obstacles.forEach(o => {
+      if (o.type === "monster") {
+        if (!o.dead && !(o.ambush && !o.activated)) drawMonster(o);
+      } else if (o.type === "child") {
+        drawChild(o);
+      }
+    });
+    books.forEach(drawBook);
+    webProjectiles.forEach(drawWebProjectile);
+    if (boss) drawBoss();
+    if (player.powering) {
+      drawPowerWave();
+      drawPowerPose();
+    } else {
+      drawPlayer();
+    }
+    drawTauntBubble();
+    drawPops(dt);
+    if (player.powering) drawPowerCleanText();
+  }
+
+  // ---------- Main loop ----------
+  function loop(ts) {
+    if (!lastTime) lastTime = ts;
+    let dt = (ts - lastTime) / 1000;
+    if (dt > 0.05) dt = 0.05;
+    lastTime = ts;
+    update(dt);
+    draw(dt);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // ---------- Buttons ----------
+  document.querySelectorAll(".charCard").forEach((card) => {
+    card.addEventListener("click", () => {
+      // Character select is now the very first tap on the page (used to be
+      // the START SHIFT button) — iOS Safari ties its audio unlock to
+      // whichever gesture first touches the Audio APIs, so this has to
+      // happen here too, not just in startBtn's handler, or audio can stay
+      // silent for the whole session on iPhone/iPad even though startBtn's
+      // own ensureAudioCtx() call still runs right after.
+      ensureAudioCtx();
+      selectedCharacter = card.dataset.char;
+      playerSprites = PLAYER_SPRITES_BY_CHAR[selectedCharacter];
+      showOnly("startOverlay");
+    });
+  });
+  document.getElementById("powerWrap").addEventListener("click", (e) => {
+    e.preventDefault();
+    triggerPowerClean();
+  });
+  document.getElementById("startBtn").addEventListener("click", () => {
+    ensureAudioCtx();
+    bgMusic.volume = masterVolume;
+    bgMusic.play().catch(() => {});
+    score = 0;
+    powerMeter = 0;
+    lives = 3;
+    maxLivesThisRun = 3;
+    nextLifeThreshold = EXTRA_LIFE_SCORE_INTERVAL;
+    startLevel(0);
+    state = "playing";
+    showOnly(null);
+  });
+  document.getElementById("retryBtn").addEventListener("click", () => {
+    score = 0;
+    powerMeter = 0;
+    lives = 3;
+    maxLivesThisRun = 3;
+    nextLifeThreshold = EXTRA_LIFE_SCORE_INTERVAL;
+    startLevel(levelIndex);
+    state = "playing";
+    showOnly(null);
+  });
+  document.getElementById("nextLevelBtn").addEventListener("click", () => {
+    startLevel(levelIndex + 1);
+    state = "playing";
+    showOnly(null);
+  });
+  document.getElementById("playAgainBtn").addEventListener("click", () => {
+    score = 0;
+    powerMeter = 0;
+    lives = 3;
+    maxLivesThisRun = 3;
+    nextLifeThreshold = EXTRA_LIFE_SCORE_INTERVAL;
+    startLevel(0);
+    state = "playing";
+    showOnly(null);
+  });
+
+  // ---------- Leaderboard (local, per-browser via localStorage) ----------
+  function loadLeaderboard() {
+    try {
+      const raw = localStorage.getItem(LEADERBOARD_KEY);
+      const entries = raw ? JSON.parse(raw) : [];
+      return Array.isArray(entries) ? entries : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  function saveLeaderboard(entries) {
+    try {
+      localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries));
+    } catch (e) {}
+  }
+  function fetchLeaderboard() {
+    const list = document.getElementById("leaderboard-list");
+    const err = document.getElementById("leaderboard-error");
+    list.innerHTML = "";
+    err.style.display = "none";
+    const entries = loadLeaderboard();
+    entries.forEach(e => {
+      const li = document.createElement("li");
+      li.textContent = e.name + " — " + e.score;
+      list.appendChild(li);
+    });
+  }
+  document.getElementById("leaderboard-btn").addEventListener("click", () => {
+    document.getElementById("leaderboard-overlay").style.display = "flex";
+    fetchLeaderboard();
+  });
+  document.getElementById("leaderboard-close").addEventListener("click", () => {
+    document.getElementById("leaderboard-overlay").style.display = "none";
+  });
+
+  async function submitScoreIfQualifies(finalScore) {
+    if (finalScore <= 0) return;
+    const current = loadLeaderboard();
+    let qualifies = true;
+    if (current.length >= 10) {
+      const lowest = current[current.length - 1].score;
+      qualifies = finalScore > lowest;
+    }
+    if (!qualifies) return;
+    document.getElementById("score-entry-overlay").style.display = "flex";
+    document.getElementById("score-entry-submit").onclick = () => {
+      const name = document.getElementById("score-entry-name").value || "Anonymous";
+      const entries = loadLeaderboard();
+      entries.push({ name: name, score: finalScore });
+      entries.sort((a, b) => b.score - a.score);
+      entries.length = Math.min(entries.length, 10);
+      saveLeaderboard(entries);
+      document.getElementById("score-entry-overlay").style.display = "none";
+    };
+  }
+
+  document.getElementById("reset-btn").addEventListener("click", () => {
+    score = 0;
+    powerMeter = 0;
+    lives = 3;
+    maxLivesThisRun = 3;
+    nextLifeThreshold = EXTRA_LIFE_SCORE_INTERVAL;
+    startLevel(0);
+    state = "start";
+    showOnly("startOverlay");
+  });
+
+  // ---------- Init ----------
+  resetGame();
+})();
+</script>
+
+</body>
+</html>
