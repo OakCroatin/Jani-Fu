@@ -7,7 +7,7 @@ the Principal boss at the end of each level.
 ## Play
 
 Open `index.html` in a browser, or play it hosted via GitHub Pages:
-https://oakcroatin.github.io/jani-fu/
+https://oakcroatin.github.io/Jani-Fu/
 
 ## Local dev
 
